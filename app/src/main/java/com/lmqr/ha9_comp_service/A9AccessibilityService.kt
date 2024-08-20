@@ -1,5 +1,6 @@
 package com.lmqr.ha9_comp_service
 
+import SystemSettingsManager
 import android.accessibilityservice.AccessibilityService
 import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
@@ -10,7 +11,6 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
-import android.database.ContentObserver
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Point
@@ -29,7 +29,6 @@ import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.widget.Button
 import android.widget.SeekBar
-import android.widget.SeekBar.OnSeekBarChangeListener
 import androidx.preference.PreferenceManager
 import com.lmqr.ha9_comp_service.button_mapper.ButtonActionManager
 import com.lmqr.ha9_comp_service.command_runners.CommandRunner
@@ -37,17 +36,14 @@ import com.lmqr.ha9_comp_service.command_runners.Commands
 import com.lmqr.ha9_comp_service.command_runners.UnixSocketCommandRunner
 import com.lmqr.ha9_comp_service.databinding.FloatingMenuLayoutBinding
 import kotlin.math.max
-import kotlin.math.min
 
 
 class A9AccessibilityService : AccessibilityService(),
     SharedPreferences.OnSharedPreferenceChangeListener {
     private lateinit var commandRunner: CommandRunner
-    private lateinit var temperatureModeManager: TemperatureModeManager
     private lateinit var refreshModeManager: RefreshModeManager
     private lateinit var sharedPreferences: SharedPreferences
     private lateinit var buttonActionManager: ButtonActionManager
-    private lateinit var alwaysOnDisplay: AlwaysOnDisplay
     private var isScreenOn = true
 
     private val receiver: BroadcastReceiver = object : BroadcastReceiver() {
@@ -55,20 +51,42 @@ class A9AccessibilityService : AccessibilityService(),
             when (intent.action) {
                 Intent.ACTION_SCREEN_OFF -> {
                     isScreenOn = false
-                    temperatureModeManager.onScreenChange(false)
                     menuBinding.close()
-                    if(!sharedPreferences.getBoolean("disable_overlay_aod", false))
-                        alwaysOnDisplay.openAOD()
-                    if(sharedPreferences.getBoolean("refresh_on_lock", false))
+                    if (sharedPreferences.getBoolean("refresh_on_lock", false))
                         handler.postDelayed({
                             commandRunner.runCommands(arrayOf(Commands.FORCE_CLEAR))
                         }, 150)
                 }
-
                 Intent.ACTION_SCREEN_ON -> {
                     isScreenOn = true
-                    alwaysOnDisplay.closeAOD()
-                    temperatureModeManager.onScreenChange(true)
+                }
+            }
+        }
+    }
+    private val receiverEink: BroadcastReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if(!sharedPreferences.getBoolean("allow_custom_broadcast", false))
+                return
+
+            when (intent.action) {
+                "EINK_FORCE_CLEAR" -> {
+                    commandRunner.runCommands(arrayOf(Commands.FORCE_CLEAR))
+                }
+
+                "EINK_REFRESH_SPEED_CLEAR" -> {
+                    refreshModeManager.changeMode(RefreshMode.CLEAR)
+                }
+
+                "EINK_REFRESH_SPEED_BALANCED" -> {
+                    refreshModeManager.changeMode(RefreshMode.BALANCED)
+                }
+
+                "EINK_REFRESH_SPEED_SMOOTH" -> {
+                    refreshModeManager.changeMode(RefreshMode.SMOOTH)
+                }
+
+                "EINK_REFRESH_SPEED_FAST" -> {
+                    refreshModeManager.changeMode(RefreshMode.SPEED)
                 }
             }
         }
@@ -76,34 +94,15 @@ class A9AccessibilityService : AccessibilityService(),
 
     private val handler = Handler(Looper.getMainLooper())
 
-    fun getBrightnessFromSetting() = min(
-        max(
-            Settings.System.getInt(
-                contentResolver, Settings.System.SCREEN_BRIGHTNESS, 0
-            ) - 1, 0
-        ), 255
-    ) / 255f
-
     override fun onCreate() {
         super.onCreate()
         commandRunner =
             UnixSocketCommandRunner()
         sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
         sharedPreferences.registerOnSharedPreferenceChangeListener(this)
-        alwaysOnDisplay = AlwaysOnDisplay(this)
         refreshModeManager = RefreshModeManager(
             sharedPreferences,
             commandRunner
-        )
-        temperatureModeManager = TemperatureModeManager(
-            if (sharedPreferences.getBoolean("temperature_slider", false))
-                TemperatureMode.Slider
-            else if (sharedPreferences.getBoolean("night_mode", false))
-                TemperatureMode.Night
-            else
-                TemperatureMode.White,
-            getBrightnessFromSetting(),
-            commandRunner,
         )
 
         buttonActionManager = ButtonActionManager(commandRunner)
@@ -113,16 +112,13 @@ class A9AccessibilityService : AccessibilityService(),
         filterScreen.addAction(Intent.ACTION_SCREEN_OFF)
         registerReceiver(receiver, filterScreen)
 
-        contentObserver = object : ContentObserver(handler) {
-            override fun onChange(selfChange: Boolean) {
-                temperatureModeManager.brightness = getBrightnessFromSetting()
-            }
-        }
-
-        contentResolver.registerContentObserver(
-            Settings.System.getUriFor(Settings.System.SCREEN_BRIGHTNESS),
-            true, contentObserver as ContentObserver
-        )
+        val filterEink = IntentFilter()
+        filterEink.addAction("EINK_FORCE_CLEAR")
+        filterEink.addAction("EINK_REFRESH_SPEED_CLEAR")
+        filterEink.addAction("EINK_REFRESH_SPEED_BALANCED")
+        filterEink.addAction("EINK_REFRESH_SPEED_SMOOTH")
+        filterEink.addAction("EINK_REFRESH_SPEED_FAST")
+        registerReceiver(receiverEink, filterEink, RECEIVER_EXPORTED)
 
         updateColorScheme(sharedPreferences)
     }
@@ -216,20 +212,12 @@ class A9AccessibilityService : AccessibilityService(),
                     root.visibility = View.GONE
                 } else {
                     root.visibility = View.VISIBLE
-
-                    nightSwitch.visibility =
-                        if (sharedPreferences.getBoolean("disable_nightmode", false)
-                            || sharedPreferences.getBoolean("temperature_slider", false)
-                        )
-                            View.GONE
-                        else View.VISIBLE
-
-                    lightSeekbarContainer.visibility =
-                        if (sharedPreferences.getBoolean("disable_nightmode", false)
-                            || !sharedPreferences.getBoolean("temperature_slider", false)
-                        )
-                            View.GONE
-                        else View.VISIBLE
+                    lightSeekbar.progress = max(SystemSettingsManager.getBrightnessFromSetting(this@A9AccessibilityService) - 1, 0)
+                    buttonNight.text = when(SystemSettingsManager.getNightLightMode(this@A9AccessibilityService)){
+                        SystemSettingsManager.NightLightMode.Manual -> "Manual"
+                        SystemSettingsManager.NightLightMode.Auto -> "Auto"
+                        else -> "OFF"
+                    }
                     updateButtons(refreshModeManager.currentMode)
                 }
             } ?: run {
@@ -282,23 +270,19 @@ class A9AccessibilityService : AccessibilityService(),
                         close()
                         startActivity(settingsIntent)
                     }
-                    nightSwitch.setOnCheckedChangeListener { _, checked ->
-                        val currentMode = sharedPreferences.getBoolean("night_mode", false)
-                        if (currentMode != checked) {
-                            sharedPreferences.edit().putBoolean("night_mode", checked).apply()
-                        }
-                    }
-                    nightSwitch.isChecked = sharedPreferences.getBoolean("night_mode", false)
 
-                    lightSeekbar.progress = 100
+                    lightSeekbar.min = 0
+                    lightSeekbar.max = 254
+                    lightSeekbar.progress = max(SystemSettingsManager.getBrightnessFromSetting(this@A9AccessibilityService) - 1, 0)
                     lightSeekbar.setOnSeekBarChangeListener(
-                        object : OnSeekBarChangeListener {
+                        object : SeekBar.OnSeekBarChangeListener {
                             override fun onProgressChanged(
                                 seekBar: SeekBar?,
                                 progress: Int,
                                 fromUser: Boolean
                             ) {
-                                temperatureModeManager.whiteToYellow = progress / 100.0
+                                if(fromUser)
+                                    SystemSettingsManager.setBrightnessSetting(this@A9AccessibilityService, progress + 1)
                             }
 
                             override fun onStartTrackingTouch(seekBar: SeekBar?) {
@@ -310,18 +294,20 @@ class A9AccessibilityService : AccessibilityService(),
                         }
                     )
 
-                    nightSwitch.visibility =
-                        if (sharedPreferences.getBoolean("disable_nightmode", false)
-                            || sharedPreferences.getBoolean("temperature_slider", false)
-                        )
-                            View.GONE
-                        else View.VISIBLE
-                    lightSeekbarContainer.visibility =
-                        if (sharedPreferences.getBoolean("disable_nightmode", false)
-                            || !sharedPreferences.getBoolean("temperature_slider", false)
-                        )
-                            View.GONE
-                        else View.VISIBLE
+                    buttonNight.text = when(SystemSettingsManager.getNightLightMode(this@A9AccessibilityService)){
+                        SystemSettingsManager.NightLightMode.Manual -> "Manual"
+                        SystemSettingsManager.NightLightMode.Auto -> "Auto"
+                        else -> "OFF"
+                    }
+
+                    buttonNight.setOnClickListener {
+                        val nextMode = SystemSettingsManager.setNextNightLightMode(this@A9AccessibilityService)
+                        buttonNight.text = when(nextMode){
+                            SystemSettingsManager.NightLightMode.Manual -> "Manual"
+                            SystemSettingsManager.NightLightMode.Auto -> "Auto"
+                            else -> "OFF"
+                        }
+                    }
 
                     updateButtons(refreshModeManager.currentMode)
 
@@ -334,14 +320,11 @@ class A9AccessibilityService : AccessibilityService(),
     }
 
     override fun onDestroy() {
-        contentObserver?.let { contentResolver.unregisterContentObserver(it) }
         commandRunner.onDestroy()
         sharedPreferences.unregisterOnSharedPreferenceChangeListener(this)
         unregisterReceiver(receiver)
         super.onDestroy()
     }
-
-    private var contentObserver: ContentObserver? = null
 
     override fun onServiceConnected() {
     }
@@ -361,49 +344,33 @@ class A9AccessibilityService : AccessibilityService(),
         }
     }
 
-    private fun setCorrectMode(sharedPreferences: SharedPreferences) = sharedPreferences.run {
-        if (getBoolean("temperature_slider", false))
-            temperatureModeManager.setMode(TemperatureMode.Slider)
-        else if (getBoolean("night_mode", false))
-            temperatureModeManager.setMode(TemperatureMode.Night)
-        else
-            temperatureModeManager.setMode(TemperatureMode.White)
-    }
-
     private fun updateColorScheme(sharedPreferences: SharedPreferences) = sharedPreferences.run {
         val type = getString("color_scheme_type", "5")
         val colorString = getInt("color_scheme_color", 20).progressToHex()
         commandRunner.runCommands(arrayOf("theme $type $colorString"))
     }
 
-    fun performAODAction() = alwaysOnDisplay.performExtraAction()
+    private fun updateStaticLockscreen(sharedPreferences: SharedPreferences) = sharedPreferences.run {
+        try{
+            val op = Integer.parseInt(getString("static_lockscreen_opacity", "0")?:"0")
+            val tp = Integer.parseInt(getString("static_lockscreen_type", "0")?:"0")
+            val bgop = Integer.parseInt(getString("static_lockscreen_bg_opacity", "0")?:"0")
+            val mix = Integer.parseInt(getString("static_lockscreen_mix_color", "0")?:"0")
+            commandRunner.runCommands(arrayOf("stl${op + tp + mix + bgop}"))
+        } catch (e: NumberFormatException) {
+            e.printStackTrace()
+        }
+    }
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
         when (key) {
-            "disable_nightmode" -> {
-                temperatureModeManager.isDisabled =
-                    (sharedPreferences?.getBoolean("disable_nightmode", false) == true)
-                if (!temperatureModeManager.isDisabled) {
-                    sharedPreferences?.let { setCorrectMode(it) }
-                }
-            }
-
-            "night_mode" -> {
-                menuBinding?.nightSwitch?.isChecked =
-                    sharedPreferences?.getBoolean("night_mode", false) == true
-
-                sharedPreferences?.let { setCorrectMode(it) }
-            }
-
-            "temperature_slider" -> {
-                sharedPreferences?.let { setCorrectMode(it) }
+            "static_lockscreen_opacity", "static_lockscreen_type", "static_lockscreen_bg_opacity", "static_lockscreen_mix_color" -> {
+                sharedPreferences?.let { updateStaticLockscreen(it) }
             }
 
             "color_scheme_type", "color_scheme_color" -> {
                 sharedPreferences?.let { updateColorScheme(it) }
             }
-
-            "overlay_chess", "aod_image_updated" -> alwaysOnDisplay.update()
 
             "close_status_bar" -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 performGlobalAction(GLOBAL_ACTION_DISMISS_NOTIFICATION_SHADE)

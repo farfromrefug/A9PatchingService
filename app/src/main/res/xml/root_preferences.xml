@@ -56,24 +56,53 @@
             app:defaultValue="dummy"
             app:dialogTitle="Choose an action for long press when screen is off" />
 
-        <SwitchPreferenceCompat
-            app:key="disable_nightmode"
-            app:disableDependentsState="true"
-            app:summaryOff="Disable toggle for nightmode, the screen will only use white light"
-            app:summaryOn="Enable nightmode toggle in menu"
-            app:title="Disable Nightmode" />
+        <ListPreference
+            app:key="static_lockscreen_type"
+            app:title="Set Static Lockscreen Icon"
+            app:summary="Select which lockscreen icon should show when AoD is off"
+            app:entries="@array/static_lockscreen_options"
+            app:entryValues="@array/static_lockscreen_values"
+            app:defaultValue="0"
+            app:dialogTitle="Choose Static Lockscreen Icon Appearance" />
 
-        <SwitchPreferenceCompat
-            app:key="temperature_slider"
-            app:dependency="disable_nightmode"
-            app:summary="Enable slider in place of toggle"
-            app:title="Enable Temperature Slider" />
+        <ListPreference
+            app:key="static_lockscreen_opacity"
+            app:title="Set Static Lockscreen Icon Opacity"
+            app:summary="Adjust opacity of the static lockscreen icon"
+            app:entries="@array/static_lockscreen_opacity_options"
+            app:entryValues="@array/static_lockscreen_opacity_values"
+            app:defaultValue="0"
+            app:dialogTitle="Choose Static Lockscreen Icon Opacity" />
 
+        <ListPreference
+            app:key="static_lockscreen_bg_opacity"
+            app:title="Set Static Lockscreen Background Opacity"
+            app:summary="Adjust opacity of the static lockscreen background"
+            app:entries="@array/static_lockscreen_bg_opacity_options"
+            app:entryValues="@array/static_lockscreen_bg_opacity_values"
+            app:defaultValue="0"
+            app:dialogTitle="Choose Static Lockscreen Icon Opacity" />
+
+        <ListPreference
+            app:key="static_lockscreen_mix_color"
+            app:title="Set Static Lockscreen Colors"
+            app:entries="@array/static_lockscreen_color_options"
+            app:entryValues="@array/static_lockscreen_color_values"
+            app:defaultValue="0"
+            app:dialogTitle="Choose Static Lockscreen Icon Opacity" />
 
     </PreferenceCategory>
 
 
     <PreferenceCategory app:title="Refresh Mode Settings">
+        <SwitchPreferenceCompat
+            app:key="allow_custom_broadcast"
+            app:title="Allow Control via Broadcasts" />
+
+        <SwitchPreferenceCompat
+            app:key="refresh_on_lock"
+            app:title="Refresh Screen on Lock" />
+
         <SwitchPreferenceCompat
             app:key="disable_perapprefresh"
             app:disableDependentsState="true"
@@ -106,59 +135,6 @@
             app:updatesContinuously="false"
             app:min="0"
             android:max="100"/>
-    </PreferenceCategory>
-
-    <PreferenceCategory app:title="Always On Display">
-
-        <SwitchPreferenceCompat
-            app:key="disable_overlay_aod"
-            app:disableDependentsState="true"
-            app:summary="Disable custom AOD on stock"
-            app:title="Disable Overlay AOD" />
-
-        <SwitchPreferenceCompat
-            app:dependency="disable_overlay_aod"
-            app:key="overlay_chess"
-            app:summary="Enable chess replays on AOD"
-            app:title="Chess AOD" />
-
-        <SwitchPreferenceCompat
-            android:dependency="disable_overlay_aod"
-            app:key="refresh_on_lock"
-            app:summary="Helps avoid ghosting on AOD"
-            app:title="Refresh AOD after screen off"
-            app:defaultValue="true"/>
-
-        <Preference
-            app:key="grant_notif_perms"
-            app:title="Grant Notification Permissions"
-            app:summary="Grant notification permissions for AOD"/>
-
-        <ListPreference
-            app:dependency="disable_overlay_aod"
-            app:key="music_view_timeout"
-            app:title="Set Timeout for MusicView Visibility"
-            app:summary="Time after which MusicView should disappear if the music is paused but the session still exists (in minutes)"
-            app:entries="@array/mv_timeout_options"
-            app:entryValues="@array/mv_timeout_values"
-            app:defaultValue="-1" />
-
-        <Preference
-            app:key="select_aod_bg"
-            android:dependency="disable_overlay_aod"
-            app:title="Select Background for AOD" />
-
-        <Preference
-            app:key="remove_aod_bg"
-            android:dependency="disable_overlay_aod"
-            app:title="Remove Background for AOD" />
-
-
-        <Preference
-            app:key="request_all_file"
-            android:dependency="disable_overlay_aod"
-            app:title="Request All File Access"
-            app:summary="The background file will be saved in folder accessible for other apps like KOReader" />
     </PreferenceCategory>
 
 </PreferenceScreen>
