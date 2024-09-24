@@ -201,6 +201,40 @@ void writeLockscreenProp(const char* value) {
     }
 }
 
+void writeMaxBrightnessProp(const char* value) {
+    if(!valid_number(value)){
+        LOGE("Error setting static lockscreen: Invalid Number\n");
+        return;
+    }
+    pid_t pid = fork();
+    if (pid == 0) {
+        execl("/system/bin/setprop", "setprop", "sys.linevibrator_touch", value, (char *)NULL);
+        LOGE("execlp failed: %s", strerror(errno));
+        exit(EXIT_FAILURE);
+    } else if (pid < 0) {
+        LOGE("fork failed: %s", strerror(errno));
+    } else {
+        wait(NULL);
+    }
+}
+
+void writeWakeOnVolumeProp(const char* value) {
+    if(!valid_number(value)){
+        LOGE("Error setting static lockscreen: Invalid Number\n");
+        return;
+    }
+    pid_t pid = fork();
+    if (pid == 0) {
+        execl("/system/bin/setprop", "setprop", "sys.wakeup_on_volume", value, (char *)NULL);
+        LOGE("execlp failed: %s", strerror(errno));
+        exit(EXIT_FAILURE);
+    } else if (pid < 0) {
+        LOGE("fork failed: %s", strerror(errno));
+    } else {
+        wait(NULL);
+    }
+}
+
 void processCommand(const char* command) {
     if (strcmp(command, "cm") == 0) {
         epdCommitBitmap();
@@ -226,6 +260,12 @@ void processCommand(const char* command) {
     } else if (strncmp(command, "sco", 3) == 0) {
         if(valid_number(command+3))
             setContrast(command+3);
+    } else if (strncmp(command, "smb", 3) == 0) {
+        if(valid_number(command+3))
+            writeMaxBrightnessProp(command+3);
+    } else if (strncmp(command, "wov", 3) == 0) {
+        if(valid_number(command+3))
+            writeWakeOnVolumeProp(command+3);
     } else if (strncmp(command, "theme", 5) == 0) {
         int theme_style_index;
         char hex_color[7];

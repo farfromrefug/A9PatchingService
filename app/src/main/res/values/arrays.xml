@@ -40,34 +40,58 @@
         <item>72</item>
     </string-array>
     <string-array name="static_lockscreen_opacity_options">
-        <item>Transparent</item>
-        <item>Semi-Transparent</item>
         <item>Opaque</item>
+        <item>Semi-Transparent</item>
+        <item>Transparent</item>
     </string-array>
     <string-array name="static_lockscreen_opacity_values">
-        <item>16</item>
-        <item>8</item>
         <item>0</item>
+        <item>8</item>
+        <item>16</item>
     </string-array>
     <string-array name="static_lockscreen_bg_opacity_options">
-        <item>Transparent</item>
-        <item>Semi-Transparent</item>
-        <item>Semi-Opaque</item>
         <item>Opaque</item>
+        <item>Semi-Opaque</item>
+        <item>Semi-Transparent</item>
+        <item>Transparent</item>
     </string-array>
     <string-array name="static_lockscreen_bg_opacity_values">
-        <item>6</item>
-        <item>4</item>
-        <item>2</item>
         <item>0</item>
+        <item>2</item>
+        <item>4</item>
+        <item>6</item>
     </string-array>
     <string-array name="static_lockscreen_color_options">
-        <item>White Logo on Black Background</item>
         <item>Black Logo on White Background</item>
+        <item>White Logo on Black Background</item>
     </string-array>
     <string-array name="static_lockscreen_color_values">
         <item>1</item>
         <item>0</item>
+    </string-array>
+    <string-array name="max_brightness_tiers">
+        <item>100</item>
+        <item>250</item>
+        <item>500</item>
+        <item>750</item>
+        <item>1000</item>
+        <item>1250</item>
+        <item>1500</item>
+        <item>1750</item>
+        <item>2000 (Default)</item>
+        <item>2200</item>
+    </string-array>
+    <string-array name="max_brightness_tiers_values">
+        <item>100</item>
+        <item>250</item>
+        <item>500</item>
+        <item>750</item>
+        <item>1000</item>
+        <item>1250</item>
+        <item>1500</item>
+        <item>1750</item>
+        <item>2000</item>
+        <item>2200</item>
     </string-array>
     <string-array name="button_action_entries">
         <item>Clear Screen</item>
