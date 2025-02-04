@@ -9,7 +9,7 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.lmqr.ha9_comp_service3"
+        applicationId = "com.lmqr.ha9_comp_service2"
         minSdk = 27
         targetSdk = 35
         versionCode = 40
