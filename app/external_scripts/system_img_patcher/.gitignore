@@ -1,0 +1,5 @@
+TMP
+__pycache__
+magisk_module/**/*.apk
+magisk_module/**/*.jar
+*.img

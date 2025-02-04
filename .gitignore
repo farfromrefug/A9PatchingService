@@ -14,3 +14,8 @@
 .externalNativeBuild
 .cxx
 local.properties
+/app/release
+/app/external_scripts/system_img_patcher/TMP
+/app/external_scripts/system_img_patcher/__pycache__
+/app/external_scripts/system_img_patcher/magisk_module/**/*.apk
+/app/external_scripts/system_img_patcher/magisk_module/**/*.jar
