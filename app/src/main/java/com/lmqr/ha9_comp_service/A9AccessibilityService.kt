@@ -11,6 +11,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.database.ContentObserver
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Point
@@ -96,6 +97,22 @@ class A9AccessibilityService : AccessibilityService(),
         }
     }
 
+    private val brightnessCcontentObserver = object: ContentObserver(Handler())
+    {
+        override fun onChange(selfChange:Boolean)
+        {
+            // get system brightness level
+            val brightnessAmount = Settings.System.getInt(
+                contentResolver,Settings.System.SCREEN_BRIGHTNESS,0)
+            //we store it ourselves because if we put it to negative to toggle
+            // on reboot it will be 1
+            with (sharedPreferences.edit()) {
+                putInt("saved_screen_brightness", brightnessAmount)
+                apply()
+            }
+        }
+    }
+
     private val handler = Handler(Looper.getMainLooper())
 
     override fun onCreate() {
@@ -130,6 +147,14 @@ class A9AccessibilityService : AccessibilityService(),
         filterEink.addAction("EINK_REFRESH_SPEED_FAST")
         registerReceiver(receiverEink, filterEink, RECEIVER_EXPORTED)
 
+        contentResolver.registerContentObserver(
+            Settings.System.getUriFor(Settings.System.SCREEN_BRIGHTNESS),
+            false, brightnessCcontentObserver)
+        val currentBrightness = SystemSettingsManager.getBrightnessFromSetting(this)
+        val savedBrightness = sharedPreferences.getInt("saved_screen_brightness", currentBrightness)
+        if (savedBrightness != currentBrightness) {
+            SystemSettingsManager.setBrightnessSetting(this, savedBrightness)
+        }
         updateColorScheme(sharedPreferences)
         staticAODOpacityManager.applyMode()
         staticAODOpacityManager.applyReader()

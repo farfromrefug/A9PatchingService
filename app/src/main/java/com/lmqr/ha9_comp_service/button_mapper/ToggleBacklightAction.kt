@@ -5,11 +5,11 @@ import android.content.Context
 import android.provider.Settings
 
 class ToggleBacklightAction : ButtonAction {
-    private var lastValue = 0
+//    private var lastValue = 0
     override fun execute(context: Context) {
         val currentValue = SystemSettingsManager.getBrightnessFromSetting(context)
-        SystemSettingsManager.setBrightnessSetting(context, if(currentValue <= 1) lastValue else 1)
-        lastValue = currentValue
+        SystemSettingsManager.setBrightnessSetting(context, -currentValue)
+//        lastValue = currentValue
         val uri = Settings.System
             .getUriFor(Settings.System.SCREEN_BRIGHTNESS)
         context.applicationContext.contentResolver.notifyChange(uri, null)
