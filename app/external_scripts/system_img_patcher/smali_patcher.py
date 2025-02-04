@@ -134,11 +134,11 @@ class InstructionType(Enum):
             return any(map(self.matches, other))
         return other == self
 
-def run_command(command, check = True, quiet = False):
+def run_command(command, check = True, quiet = False, cwd = None):
     if not quiet:
         logging.info(f"Running command: {command}")
     try:
-        result = subprocess.run(command, shell=True, check=check, capture_output=True, text=True)
+        result = subprocess.run(command, shell=True, check=check, capture_output=True, text=True, cwd=cwd)
         if not quiet:
             logging.info(f"Command '{command}' executed successfully.")
         return result.stdout
@@ -148,8 +148,11 @@ def run_command(command, check = True, quiet = False):
         raise
 
 class JarPatcher:
-    def __init__(self, target_file, patchers = []):
+    def __init__(self, target_file, patchers = [], output_file = None):
         self.target_file = target_file
+        if output_file is None:
+            output_file = self.target_file
+        self.output_file = output_file
         no_dir_file = target_file.rsplit('/', 1)[-1]
         self.file_name, self.file_extensions = no_dir_file.rsplit('.', 1)
         self.temp_dir_name = f"temp_{self.file_name}"
@@ -162,8 +165,8 @@ class JarPatcher:
         os.makedirs(self.temp_dir_name, exist_ok = True)
 
         for f in install:
-            run_command(f"apktool if {f}")
-        decompile_command = f"apktool d{' -s' if not use_src else ''}{' -r' if not use_res else ''} -f {self.target_file} -o {self.temp_dir_name}"
+            run_command(f"apktool --frame-path ~/.local/share/apktool if {f}")
+        decompile_command = f"apktool --frame-path ~/.local/share/apktool d{' -s' if not use_src else ''}{' -r' if not use_res else ''} -f {self.target_file} -o {self.temp_dir_name}"
         run_command(decompile_command)
 
         os.chdir(self.temp_dir_name)
@@ -182,7 +185,7 @@ class JarPatcher:
         os.chdir('..')
 
         temp_apk_name = f"{self.file_name}-TMP.{self.file_extensions}"
-        build_command = f"apktool b {self.temp_dir_name}{' -c' if copy_meta_inf else ''}{' -api ' + str(api) if api else ''} -o {temp_apk_name}"
+        build_command = f"apktool --frame-path ~/.local/share/apktool b {self.temp_dir_name}{' -c' if copy_meta_inf else ''}{' -api ' + str(api) if api else ''} -o {temp_apk_name}"
 
         run_command(build_command)
 
@@ -196,8 +199,12 @@ class JarPatcher:
             run_command(f"apksigner sign --key ../platform.pk8 --cert ../platform.x509.pem {temp_apk_name}")
 
 
-        shutil.move(temp_apk_name, self.target_file)
-        shutil.rmtree(self.temp_dir_name)
+        current_dir = os.getcwd()
+        logging.info(f"Copying {temp_apk_name} to {self.output_file} from {current_dir}")
+
+        os.makedirs(os.path.dirname(self.output_file), exist_ok=True)
+        shutil.move(temp_apk_name, self.output_file)
+        # shutil.rmtree(self.temp_dir_name)
 
 @dataclass(frozen=True)
 class InstructionPatch:

@@ -306,13 +306,13 @@ def patch_services_jar():
     def get_shader_variant(shader_name, centered=False, opacity = 0.91, bg_opacity = 0.0, mix_color = 0.0):
         with open(f'../shaders/{shader_name}.frag', 'r') as f:
             content = f.read()
-        radius = 0.25 if centered else 0.12
+        radius = 0.25 if centered else 0.05
         center_x = 0.5 if centered else round(radius + 0.05, 3)
         center_y = 1.0 if centered else round(1.9 - radius, 3)
         op_name = str(opacity).replace('.', '_')
         return format_eval(content, center_x = center_x, center_y = center_y, opacity = opacity, radius = radius, bg_opacity = bg_opacity, mix_color = mix_color, bg_mix_color = 1.0 - mix_color)
 
-    shaders = [get_shader_variant(name, centered, opacity, bg_opacity, mix_color) for name in ["color_fade_frag", "color_fade_frag_pause"] for centered in [True, False] for opacity in [0.91, 0.67, 0.45] for bg_opacity in [1.0, 0.6, 0.2, 0.0] for mix_color in [1.0, 0.0] ]
+    shaders = [get_shader_variant(name, centered, opacity, bg_opacity, mix_color) for name in ["color_fade_frag", "color_fade_frag_pause"] for centered in [True, False] for opacity in [0.91, 0.5, 0.15] for bg_opacity in [1.0, 0.6, 0.2, 0.0] for mix_color in [1.0, 0.0] ]
     def find_resource_id(public_xml_path, resource_name, resource_type):
         tree = ET.parse(public_xml_path)
         root = tree.getroot()
@@ -456,419 +456,419 @@ def patch_services_jar():
             f"invoke-virtual {{{instruction.registers[0]}, {registers[0]}}}, Landroid/animation/ObjectAnimator;->setInterpolator(Landroid/animation/TimeInterpolator;)V",
         ])
 
-    def patch_interceptKeyBeforeQueueing(method):
-        first_instruction = method.first_instruction
-        first_instruction.expand_after([
-            'move-object/from16 v0, p0',
-            'move-object/from16 v1, p1',
-            f'invoke-direct {{v0, v1}}, {method.parent.class_name}->handleWakeUpOnVolume(Landroid/view/KeyEvent;)Z',
-            'move-result v0',
-            'if-eqz v0, :dont_skip',
-            'const v0, 0x0',
-            'return v0',
-            ':dont_skip',
-        ])
-        method.parent.items.append((
-                    'method',
-                    SmaliMethod(
-                        '.method private handleWakeUpOnVolume(Landroid/view/KeyEvent;)Z',
-                        method.parent,
-                        initial_instructions = [
-                            '.locals 4',
+    # def patch_interceptKeyBeforeQueueing(method):
+    #     first_instruction = method.first_instruction
+    #     first_instruction.expand_after([
+    #         'move-object/from16 v0, p0',
+    #         'move-object/from16 v1, p1',
+    #         f'invoke-direct {{v0, v1}}, {method.parent.class_name}->handleWakeUpOnVolume(Landroid/view/KeyEvent;)Z',
+    #         'move-result v0',
+    #         'if-eqz v0, :dont_skip',
+    #         'const v0, 0x0',
+    #         'return v0',
+    #         ':dont_skip',
+    #     ])
+    #     method.parent.items.append((
+    #                 'method',
+    #                 SmaliMethod(
+    #                     '.method private handleWakeUpOnVolume(Landroid/view/KeyEvent;)Z',
+    #                     method.parent,
+    #                     initial_instructions = [
+    #                         '.locals 4',
 
-                            'const-string v0, "sys.wakeup_on_volume"',
-                            'invoke-static {v0}, Landroid/os/SystemProperties;->get(Ljava/lang/String;)Ljava/lang/String;',
-                            'move-result-object v0',
-                            'const-string v1, "1"',
-                            'invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z',
-                            'move-result v0',
-                            'if-eqz v0, :return_no_action',
+    #                         'const-string v0, "sys.wakeup_on_volume"',
+    #                         'invoke-static {v0}, Landroid/os/SystemProperties;->get(Ljava/lang/String;)Ljava/lang/String;',
+    #                         'move-result-object v0',
+    #                         'const-string v1, "1"',
+    #                         'invoke-virtual {v1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z',
+    #                         'move-result v0',
+    #                         'if-eqz v0, :return_no_action',
 
-                            'invoke-virtual {p1}, Landroid/view/KeyEvent;->getKeyCode()I',
-                            'move-result v0',
-                            'const v1, 0x1a', # POWER
-                            'if-eq v0, v1, :on_power_event',
-                            'const v1, 0x18', # VOLUME UP
-                            'if-eq v0, v1, :is_volume_event',
-                            'const v1, 0x19', # VOLUME DOWN
-                            'if-ne v0, v1, :return_no_action',
+    #                         'invoke-virtual {p1}, Landroid/view/KeyEvent;->getKeyCode()I',
+    #                         'move-result v0',
+    #                         'const v1, 0x1a', # POWER
+    #                         'if-eq v0, v1, :on_power_event',
+    #                         'const v1, 0x18', # VOLUME UP
+    #                         'if-eq v0, v1, :is_volume_event',
+    #                         'const v1, 0x19', # VOLUME DOWN
+    #                         'if-ne v0, v1, :return_no_action',
 
-                            ':is_volume_event',
-                            'invoke-virtual {p1}, Landroid/view/KeyEvent;->getAction()I',
-                            'move-result v0',
-                            'if-eqz v0, :on_key_down',
-                            'const v1, 0x1',
-                            'if-ne v0, v1, :return_no_action',
-                            f'invoke-direct {{p0, p1}}, {method.parent.class_name}->handleVolumeKeyEventUp(Landroid/view/KeyEvent;)Z',
-                            'move-result v0',
-                            'return v0',
+    #                         ':is_volume_event',
+    #                         'invoke-virtual {p1}, Landroid/view/KeyEvent;->getAction()I',
+    #                         'move-result v0',
+    #                         'if-eqz v0, :on_key_down',
+    #                         'const v1, 0x1',
+    #                         'if-ne v0, v1, :return_no_action',
+    #                         f'invoke-direct {{p0, p1}}, {method.parent.class_name}->handleVolumeKeyEventUp(Landroid/view/KeyEvent;)Z',
+    #                         'move-result v0',
+    #                         'return v0',
 
-                            ':on_key_down',
-                            f'invoke-direct {{p0, p1}}, {method.parent.class_name}->handleVolumeKeyEventDown(Landroid/view/KeyEvent;)Z',
-                            'move-result v0',
-                            'return v0',
+    #                         ':on_key_down',
+    #                         f'invoke-direct {{p0, p1}}, {method.parent.class_name}->handleVolumeKeyEventDown(Landroid/view/KeyEvent;)Z',
+    #                         'move-result v0',
+    #                         'return v0',
 
-                            ':on_power_event',
-                            'const-string v2, "sys.linevibrator_touch"',
-                            'invoke-static {v2}, Landroid/os/SystemProperties;->get(Ljava/lang/String;)Ljava/lang/String;',
-                            'move-result-object v0',
-                            ':try_number_type_start',
-                            'invoke-static {v0}, Ljava/lang/Integer;->parseInt(Ljava/lang/String;)I',
-                            'move-result v0',
-                            ':try_number_type_end',
-                            '.catchall {:try_number_type_start .. :try_number_type_end} :skip_flipping',
-                            'if-gez v0, :skip_flipping',
-                            'const v1, 0x0',
-                            'sub-int v0, v1, v0',
-                            'new-instance v1, Ljava/lang/StringBuilder;',
-                            'invoke-direct {v1}, Ljava/lang/StringBuilder;-><init>()V',
-                            'invoke-virtual {v1, v0}, Ljava/lang/StringBuilder;->append(I)Ljava/lang/StringBuilder;',
-                            'invoke-virtual {v1}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;',
-                            'move-result-object v1',
-                            'invoke-static {v2, v1}, Landroid/os/SystemProperties;->set(Ljava/lang/String;Ljava/lang/String;)V',
-                            ':skip_flipping',
+    #                         ':on_power_event',
+    #                         'const-string v2, "sys.linevibrator_touch"',
+    #                         'invoke-static {v2}, Landroid/os/SystemProperties;->get(Ljava/lang/String;)Ljava/lang/String;',
+    #                         'move-result-object v0',
+    #                         ':try_number_type_start',
+    #                         'invoke-static {v0}, Ljava/lang/Integer;->parseInt(Ljava/lang/String;)I',
+    #                         'move-result v0',
+    #                         ':try_number_type_end',
+    #                         '.catchall {:try_number_type_start .. :try_number_type_end} :skip_flipping',
+    #                         'if-gez v0, :skip_flipping',
+    #                         'const v1, 0x0',
+    #                         'sub-int v0, v1, v0',
+    #                         'new-instance v1, Ljava/lang/StringBuilder;',
+    #                         'invoke-direct {v1}, Ljava/lang/StringBuilder;-><init>()V',
+    #                         'invoke-virtual {v1, v0}, Ljava/lang/StringBuilder;->append(I)Ljava/lang/StringBuilder;',
+    #                         'invoke-virtual {v1}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;',
+    #                         'move-result-object v1',
+    #                         'invoke-static {v2, v1}, Landroid/os/SystemProperties;->set(Ljava/lang/String;Ljava/lang/String;)V',
+    #                         ':skip_flipping',
 
-                            ':return_no_action',
-                            'const/4 v0, 0x0',
-                            'return v0',
-                        ]
-                    )
-                ))
+    #                         ':return_no_action',
+    #                         'const/4 v0, 0x0',
+    #                         'return v0',
+    #                     ]
+    #                 )
+    #             ))
 
-        method.parent.items.append((
-            'method',
-            SmaliMethod(
-                '.method private handleVolumeKeyEventUp(Landroid/view/KeyEvent;)Z',
-                method.parent,
-                initial_instructions = [
-                    '.locals 4',
+    #     method.parent.items.append((
+    #         'method',
+    #         SmaliMethod(
+    #             '.method private handleVolumeKeyEventUp(Landroid/view/KeyEvent;)Z',
+    #             method.parent,
+    #             initial_instructions = [
+    #                 '.locals 4',
 
-                    # RELEASE WAKELOCK
-                    f'iget-object v0, p0, {method.parent.class_name}->mVolumeWakeLock:Landroid/os/PowerManager$WakeLock;',
-                    'invoke-virtual {v0}, Landroid/os/PowerManager$WakeLock;->isHeld()Z',
-                    'move-result v1',
-                    'if-eqz v1, :delay_up_key',
-                    'invoke-virtual {v0}, Landroid/os/PowerManager$WakeLock;->release()V',
+    #                 # RELEASE WAKELOCK
+    #                 f'iget-object v0, p0, {method.parent.class_name}->mVolumeWakeLock:Landroid/os/PowerManager$WakeLock;',
+    #                 'invoke-virtual {v0}, Landroid/os/PowerManager$WakeLock;->isHeld()Z',
+    #                 'move-result v1',
+    #                 'if-eqz v1, :delay_up_key',
+    #                 'invoke-virtual {v0}, Landroid/os/PowerManager$WakeLock;->release()V',
 
-                    # POST MESSAGES TO TURN SCREEN OFF
-                    f'iget-object v0, p0, {method.parent.class_name}->mHandler:Landroid/os/Handler;',
+    #                 # POST MESSAGES TO TURN SCREEN OFF
+    #                 f'iget-object v0, p0, {method.parent.class_name}->mHandler:Landroid/os/Handler;',
 
-                    f'const v1, {hex(595)}',
-                    'invoke-virtual {v0, v1}, Landroid/os/Handler;->removeMessages(I)V',
+    #                 f'const v1, {hex(595)}',
+    #                 'invoke-virtual {v0, v1}, Landroid/os/Handler;->removeMessages(I)V',
 
-                    f'const v1, {hex(596)}',
-                    'invoke-virtual {v0, v1}, Landroid/os/Handler;->removeMessages(I)V',
+    #                 f'const v1, {hex(596)}',
+    #                 'invoke-virtual {v0, v1}, Landroid/os/Handler;->removeMessages(I)V',
 
-                    f'const v1, {hex(595)}',
-                    f'const-wide v2, {hex(500)}',
-                    'invoke-virtual {v0, v1, v2, v3}, Landroid/os/Handler;->sendEmptyMessageDelayed(IJ)Z',
+    #                 f'const v1, {hex(595)}',
+    #                 f'const-wide v2, {hex(500)}',
+    #                 'invoke-virtual {v0, v1, v2, v3}, Landroid/os/Handler;->sendEmptyMessageDelayed(IJ)Z',
 
-                    f'const v1, {hex(596)}',
-                    f'const-wide v2, {hex(2650)}',
-                    'invoke-virtual {v0, v1, v2, v3}, Landroid/os/Handler;->sendEmptyMessageDelayed(IJ)Z',
+    #                 f'const v1, {hex(596)}',
+    #                 f'const-wide v2, {hex(2650)}',
+    #                 'invoke-virtual {v0, v1, v2, v3}, Landroid/os/Handler;->sendEmptyMessageDelayed(IJ)Z',
 
-                    # RETURN
-                    'const/4 v0, 0x0',
-                    'return v0',
+    #                 # RETURN
+    #                 'const/4 v0, 0x0',
+    #                 'return v0',
 
-                    ':delay_up_key',
-                    # COPY KEYEVENT
-                    'new-instance v0, Landroid/view/KeyEvent;',
-                    'invoke-direct {v0, p1}, Landroid/view/KeyEvent;-><init>(Landroid/view/KeyEvent;)V',
-                    f'iput-object v0, p0, {method.parent.class_name}->mLastUpKeyEvent:Landroid/view/KeyEvent;',
+    #                 ':delay_up_key',
+    #                 # COPY KEYEVENT
+    #                 'new-instance v0, Landroid/view/KeyEvent;',
+    #                 'invoke-direct {v0, p1}, Landroid/view/KeyEvent;-><init>(Landroid/view/KeyEvent;)V',
+    #                 f'iput-object v0, p0, {method.parent.class_name}->mLastUpKeyEvent:Landroid/view/KeyEvent;',
 
-                    # DELAY SENDING UP EVENT
-                    f'iget-object v0, p0, {method.parent.class_name}->mHandler:Landroid/os/Handler;',
-                    f'const v1, {hex(601)}',
-                    f'const-wide v2, {hex(250)}',
-                    'invoke-virtual {v0, v1, v2, v3}, Landroid/os/Handler;->sendEmptyMessageDelayed(IJ)Z',
+    #                 # DELAY SENDING UP EVENT
+    #                 f'iget-object v0, p0, {method.parent.class_name}->mHandler:Landroid/os/Handler;',
+    #                 f'const v1, {hex(601)}',
+    #                 f'const-wide v2, {hex(250)}',
+    #                 'invoke-virtual {v0, v1, v2, v3}, Landroid/os/Handler;->sendEmptyMessageDelayed(IJ)Z',
 
-                    'const/4 v0, 0x1',
-                    'return v0',
-                ]
-            )
-        ))
+    #                 'const/4 v0, 0x1',
+    #                 'return v0',
+    #             ]
+    #         )
+    #     ))
 
-        method.parent.items.append((
-                    'method',
-                    SmaliMethod(
-                        '.method private handleVolumeKeyEventDown(Landroid/view/KeyEvent;)Z',
-                        method.parent,
-                        initial_instructions = [
-                            '.locals 4',
-                            # SKIP KEYGUARD CHANGES IF INTERACTIVE
-                            f'iget-object v0, p0, {method.parent.class_name}->mPowerManager:Landroid/os/PowerManager;',
-                            'invoke-virtual {v0}, Landroid/os/PowerManager;->isInteractive()Z',
-                            'move-result v1',
-                            'if-nez v1, :return_no_down_action',
+    #     method.parent.items.append((
+    #                 'method',
+    #                 SmaliMethod(
+    #                     '.method private handleVolumeKeyEventDown(Landroid/view/KeyEvent;)Z',
+    #                     method.parent,
+    #                     initial_instructions = [
+    #                         '.locals 4',
+    #                         # SKIP KEYGUARD CHANGES IF INTERACTIVE
+    #                         f'iget-object v0, p0, {method.parent.class_name}->mPowerManager:Landroid/os/PowerManager;',
+    #                         'invoke-virtual {v0}, Landroid/os/PowerManager;->isInteractive()Z',
+    #                         'move-result v1',
+    #                         'if-nez v1, :return_no_down_action',
 
-                            # DISABLE BACKLIGHT
-                            'const-string v2, "sys.linevibrator_touch"',
-                            'invoke-static {v2}, Landroid/os/SystemProperties;->get(Ljava/lang/String;)Ljava/lang/String;',
-                            'move-result-object v0',
-                            ':try_number_type_start',
-                            'invoke-static {v0}, Ljava/lang/Integer;->parseInt(Ljava/lang/String;)I',
-                            'move-result v0',
-                            ':try_number_type_end',
-                            '.catchall {:try_number_type_start .. :try_number_type_end} :skip_flipping',
-                            'if-lez v0, :skip_flipping',
-                            'const v1, 0x0',
-                            'sub-int v0, v1, v0',
-                            'new-instance v1, Ljava/lang/StringBuilder;',
-                            'invoke-direct {v1}, Ljava/lang/StringBuilder;-><init>()V',
-                            'invoke-virtual {v1, v0}, Ljava/lang/StringBuilder;->append(I)Ljava/lang/StringBuilder;',
-                            'invoke-virtual {v1}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;',
-                            'move-result-object v1',
-                            'invoke-static {v2, v1}, Landroid/os/SystemProperties;->set(Ljava/lang/String;Ljava/lang/String;)V',
-                            ':skip_flipping',
+    #                         # DISABLE BACKLIGHT
+    #                         'const-string v2, "sys.linevibrator_touch"',
+    #                         'invoke-static {v2}, Landroid/os/SystemProperties;->get(Ljava/lang/String;)Ljava/lang/String;',
+    #                         'move-result-object v0',
+    #                         ':try_number_type_start',
+    #                         'invoke-static {v0}, Ljava/lang/Integer;->parseInt(Ljava/lang/String;)I',
+    #                         'move-result v0',
+    #                         ':try_number_type_end',
+    #                         '.catchall {:try_number_type_start .. :try_number_type_end} :skip_flipping',
+    #                         'if-lez v0, :skip_flipping',
+    #                         'const v1, 0x0',
+    #                         'sub-int v0, v1, v0',
+    #                         'new-instance v1, Ljava/lang/StringBuilder;',
+    #                         'invoke-direct {v1}, Ljava/lang/StringBuilder;-><init>()V',
+    #                         'invoke-virtual {v1, v0}, Ljava/lang/StringBuilder;->append(I)Ljava/lang/StringBuilder;',
+    #                         'invoke-virtual {v1}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;',
+    #                         'move-result-object v1',
+    #                         'invoke-static {v2, v1}, Landroid/os/SystemProperties;->set(Ljava/lang/String;Ljava/lang/String;)V',
+    #                         ':skip_flipping',
 
-                            # MAKE KEYGUARD GO AWAY
-                            f'invoke-virtual {{p0}}, {method.parent.class_name}->forceHideKeyguard()V',
+    #                         # MAKE KEYGUARD GO AWAY
+    #                         f'invoke-virtual {{p0}}, {method.parent.class_name}->forceHideKeyguard()V',
 
-                            # SKIP REST IF WAKELOCK IS HELD
-                            f'iget-object v0, p0, {method.parent.class_name}->mVolumeWakeLock:Landroid/os/PowerManager$WakeLock;',
-                            'invoke-virtual {v0}, Landroid/os/PowerManager$WakeLock;->isHeld()Z',
-                            'move-result v1',
-                            'if-nez v1, :return_no_down_action',
+    #                         # SKIP REST IF WAKELOCK IS HELD
+    #                         f'iget-object v0, p0, {method.parent.class_name}->mVolumeWakeLock:Landroid/os/PowerManager$WakeLock;',
+    #                         'invoke-virtual {v0}, Landroid/os/PowerManager$WakeLock;->isHeld()Z',
+    #                         'move-result v1',
+    #                         'if-nez v1, :return_no_down_action',
 
-                            # WAKE UP AND ACQUIRE WAKELOCK
-                            'invoke-static {}, Landroid/os/SystemClock;->uptimeMillis()J',
-                            'move-result-wide v1',
-                            f'invoke-direct {{p0, v1, v2}}, {method.parent.class_name}->wakeUpFromPowerKey(J)V',
-                            f'const-wide v1, {hex(2300)}',
-                            'invoke-virtual {v0, v1, v2}, Landroid/os/PowerManager$WakeLock;->acquire(J)V',
+    #                         # WAKE UP AND ACQUIRE WAKELOCK
+    #                         'invoke-static {}, Landroid/os/SystemClock;->uptimeMillis()J',
+    #                         'move-result-wide v1',
+    #                         f'invoke-direct {{p0, v1, v2}}, {method.parent.class_name}->wakeUpFromPowerKey(J)V',
+    #                         f'const-wide v1, {hex(2300)}',
+    #                         'invoke-virtual {v0, v1, v2}, Landroid/os/PowerManager$WakeLock;->acquire(J)V',
 
-                            # COPY KEYEVENT
-                            'new-instance v0, Landroid/view/KeyEvent;',
-                            'invoke-direct {v0, p1}, Landroid/view/KeyEvent;-><init>(Landroid/view/KeyEvent;)V',
-                            f'iput-object v0, p0, {method.parent.class_name}->mLastDownKeyEvent:Landroid/view/KeyEvent;',
+    #                         # COPY KEYEVENT
+    #                         'new-instance v0, Landroid/view/KeyEvent;',
+    #                         'invoke-direct {v0, p1}, Landroid/view/KeyEvent;-><init>(Landroid/view/KeyEvent;)V',
+    #                         f'iput-object v0, p0, {method.parent.class_name}->mLastDownKeyEvent:Landroid/view/KeyEvent;',
 
-                            # DELAY SENDING THE DOWN EVENT
-                            f'iget-object v0, p0, {method.parent.class_name}->mHandler:Landroid/os/Handler;',
-                            f'const v1, {hex(600)}',
-                            f'const-wide v2, {hex(250)}',
-                            'invoke-virtual {v0, v1, v2, v3}, Landroid/os/Handler;->sendEmptyMessageDelayed(IJ)Z',
-                            'const/4 v0, 0x1',
-                            'return v0',
+    #                         # DELAY SENDING THE DOWN EVENT
+    #                         f'iget-object v0, p0, {method.parent.class_name}->mHandler:Landroid/os/Handler;',
+    #                         f'const v1, {hex(600)}',
+    #                         f'const-wide v2, {hex(250)}',
+    #                         'invoke-virtual {v0, v1, v2, v3}, Landroid/os/Handler;->sendEmptyMessageDelayed(IJ)Z',
+    #                         'const/4 v0, 0x1',
+    #                         'return v0',
 
-                            ':return_no_down_action',
-                            'const/4 v0, 0x0',
-                            'return v0',
-                        ]
-                    )
-                ))
+    #                         ':return_no_down_action',
+    #                         'const/4 v0, 0x0',
+    #                         'return v0',
+    #                     ]
+    #                 )
+    #             ))
 
-        method.parent.items.append((
-            'method',
-            SmaliMethod(
-                '.method public forceHideKeyguard()V',
-                method.parent,
-                initial_instructions = [
-                    '.locals 3',
-                    f'iget-object v0, p0, {method.parent.class_name}->mKeyguardDelegate:Lcom/android/server/policy/keyguard/KeyguardServiceDelegate;',
-                    'if-eqz v0, :no_delegate',
-                    'invoke-static {}, Landroid/os/SystemClock;->uptimeMillis()J',
-                    'move-result-wide v1',
-                    'invoke-virtual {v0, v1, v2}, Lcom/android/server/policy/keyguard/KeyguardServiceDelegate;->startKeyguardExitAnimation(J)V'
-                    ':no_delegate',
-                    'return-void',
-                ]
-            )
-        ))
+    #     method.parent.items.append((
+    #         'method',
+    #         SmaliMethod(
+    #             '.method public forceHideKeyguard()V',
+    #             method.parent,
+    #             initial_instructions = [
+    #                 '.locals 3',
+    #                 f'iget-object v0, p0, {method.parent.class_name}->mKeyguardDelegate:Lcom/android/server/policy/keyguard/KeyguardServiceDelegate;',
+    #                 'if-eqz v0, :no_delegate',
+    #                 'invoke-static {}, Landroid/os/SystemClock;->uptimeMillis()J',
+    #                 'move-result-wide v1',
+    #                 'invoke-virtual {v0, v1, v2}, Lcom/android/server/policy/keyguard/KeyguardServiceDelegate;->startKeyguardExitAnimation(J)V'
+    #                 ':no_delegate',
+    #                 'return-void',
+    #             ]
+    #         )
+    #     ))
 
-        method.parent.items.append((
-            'method',
-            SmaliMethod(
-                '.method public sendPastKeyUpEvent()V',
-                method.parent,
-                initial_instructions = [
-                    '.locals 3',
-                    f'iget-object v1, p0, {method.parent.class_name}->mLastUpKeyEvent:Landroid/view/KeyEvent;',
-                    'if-eqz v1, :no_up_event',
-                    'invoke-static {}, Landroid/hardware/input/InputManager;->getInstance()Landroid/hardware/input/InputManager;',
-                    'move-result-object v0',
-                    'const/4 v2, 0x0',
-                    'invoke-virtual {v0, v1, v2}, Landroid/hardware/input/InputManager;->injectInputEvent(Landroid/view/InputEvent;I)Z',
-                    'const v0, 0x0',
-                    f'iput-object v0, p0, {method.parent.class_name}->mLastUpKeyEvent:Landroid/view/KeyEvent;',
-                    ':no_up_event',
-                    'return-void',
-                ]
-            )
-        ))
+    #     method.parent.items.append((
+    #         'method',
+    #         SmaliMethod(
+    #             '.method public sendPastKeyUpEvent()V',
+    #             method.parent,
+    #             initial_instructions = [
+    #                 '.locals 3',
+    #                 f'iget-object v1, p0, {method.parent.class_name}->mLastUpKeyEvent:Landroid/view/KeyEvent;',
+    #                 'if-eqz v1, :no_up_event',
+    #                 'invoke-static {}, Landroid/hardware/input/InputManager;->getInstance()Landroid/hardware/input/InputManager;',
+    #                 'move-result-object v0',
+    #                 'const/4 v2, 0x0',
+    #                 'invoke-virtual {v0, v1, v2}, Landroid/hardware/input/InputManager;->injectInputEvent(Landroid/view/InputEvent;I)Z',
+    #                 'const v0, 0x0',
+    #                 f'iput-object v0, p0, {method.parent.class_name}->mLastUpKeyEvent:Landroid/view/KeyEvent;',
+    #                 ':no_up_event',
+    #                 'return-void',
+    #             ]
+    #         )
+    #     ))
 
-        method.parent.items.append((
-            'method',
-            SmaliMethod(
-                '.method public sendPastKeyDownEvent()V',
-                method.parent,
-                initial_instructions = [
-                    '.locals 3',
-                    f'iget-object v1, p0, {method.parent.class_name}->mLastDownKeyEvent:Landroid/view/KeyEvent;',
-                    'if-eqz v1, :no_down_event',
-                    'invoke-static {}, Landroid/hardware/input/InputManager;->getInstance()Landroid/hardware/input/InputManager;',
-                    'move-result-object v0',
-                    'const/4 v2, 0x0',
-                    'invoke-virtual {v0, v1, v2}, Landroid/hardware/input/InputManager;->injectInputEvent(Landroid/view/InputEvent;I)Z',
-                    'const v0, 0x0',
-                    f'iput-object v0, p0, {method.parent.class_name}->mLastDownKeyEvent:Landroid/view/KeyEvent;',
-                    ':no_down_event',
-                    'return-void',
-                ]
-            )
-        ))
+        # method.parent.items.append((
+        #     'method',
+        #     SmaliMethod(
+        #         '.method public sendPastKeyDownEvent()V',
+        #         method.parent,
+        #         initial_instructions = [
+        #             '.locals 3',
+        #             f'iget-object v1, p0, {method.parent.class_name}->mLastDownKeyEvent:Landroid/view/KeyEvent;',
+        #             'if-eqz v1, :no_down_event',
+        #             'invoke-static {}, Landroid/hardware/input/InputManager;->getInstance()Landroid/hardware/input/InputManager;',
+        #             'move-result-object v0',
+        #             'const/4 v2, 0x0',
+        #             'invoke-virtual {v0, v1, v2}, Landroid/hardware/input/InputManager;->injectInputEvent(Landroid/view/InputEvent;I)Z',
+        #             'const v0, 0x0',
+        #             f'iput-object v0, p0, {method.parent.class_name}->mLastDownKeyEvent:Landroid/view/KeyEvent;',
+        #             ':no_down_event',
+        #             'return-void',
+        #         ]
+        #     )
+        # ))
 
-        method.parent.items.append((
-            'method',
-            SmaliMethod(
-                '.method public flipMaxBrightness(I)V',
-                method.parent,
-                initial_instructions = [
-                    '.locals 3',
-                    'const-string v2, "sys.linevibrator_touch"',
-                    'invoke-static {v2}, Landroid/os/SystemProperties;->get(Ljava/lang/String;)Ljava/lang/String;',
-                    'move-result-object v0',
-                    ':try_number_type_start',
-                    'invoke-static {v0}, Ljava/lang/Integer;->parseInt(Ljava/lang/String;)I',
-                    'move-result v0',
-                    ':try_number_type_end',
-                    '.catchall {:try_number_type_start .. :try_number_type_end} :skip_flipping',
-                    'xor-int v0, v0, p1',
-                    'if-ltz v0, :skip_flipping',
-                    'const v1, 0x0',
-                    'sub-int v0, v1, v0',
-                    'new-instance v1, Ljava/lang/StringBuilder;',
-                    'invoke-direct {v1}, Ljava/lang/StringBuilder;-><init>()V',
-                    'invoke-virtual {v1, v0}, Ljava/lang/StringBuilder;->append(I)Ljava/lang/StringBuilder;',
-                    'invoke-virtual {v1}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;',
-                    'move-result-object v1',
-                    'invoke-static {v2, v1}, Landroid/os/SystemProperties;->set(Ljava/lang/String;Ljava/lang/String;)V',
-                    ':skip_flipping',
-                    'return-void',
-                ]
-            )
-        ))
+        # method.parent.items.append((
+        #     'method',
+        #     SmaliMethod(
+        #         '.method public flipMaxBrightness(I)V',
+        #         method.parent,
+        #         initial_instructions = [
+        #             '.locals 3',
+        #             'const-string v2, "sys.linevibrator_touch"',
+        #             'invoke-static {v2}, Landroid/os/SystemProperties;->get(Ljava/lang/String;)Ljava/lang/String;',
+        #             'move-result-object v0',
+        #             ':try_number_type_start',
+        #             'invoke-static {v0}, Ljava/lang/Integer;->parseInt(Ljava/lang/String;)I',
+        #             'move-result v0',
+        #             ':try_number_type_end',
+        #             '.catchall {:try_number_type_start .. :try_number_type_end} :skip_flipping',
+        #             'xor-int v0, v0, p1',
+        #             'if-ltz v0, :skip_flipping',
+        #             'const v1, 0x0',
+        #             'sub-int v0, v1, v0',
+        #             'new-instance v1, Ljava/lang/StringBuilder;',
+        #             'invoke-direct {v1}, Ljava/lang/StringBuilder;-><init>()V',
+        #             'invoke-virtual {v1, v0}, Ljava/lang/StringBuilder;->append(I)Ljava/lang/StringBuilder;',
+        #             'invoke-virtual {v1}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;',
+        #             'move-result-object v1',
+        #             'invoke-static {v2, v1}, Landroid/os/SystemProperties;->set(Ljava/lang/String;Ljava/lang/String;)V',
+        #             ':skip_flipping',
+        #             'return-void',
+        #         ]
+        #     )
+        # ))
 
-    def patch_phoneWindowManagerInit(instruction):
-        registers = instruction.next.get_n_free_registers(2)
-        instruction.expand_after([
-            f'const {registers[0]}, 0x10000006',
-            f'const-string {registers[1]}, "Sys::VolumeWakeLock"',
-            f'invoke-virtual {{{instruction.registers[0]}, {registers[0]}, {registers[1]}}}, Landroid/os/PowerManager;->newWakeLock(ILjava/lang/String;)Landroid/os/PowerManager$WakeLock;',
-            f'move-result-object {registers[0]}',
-            f'iput-object {registers[0]}, {instruction.registers[1]}, {instruction.parent.parent.class_name}->mVolumeWakeLock:Landroid/os/PowerManager$WakeLock;',
-            f'const {registers[0]}, 0x0',
-            f'iput-object {registers[0]}, {instruction.registers[1]}, {instruction.parent.parent.class_name}->mLastDownKeyEvent:Landroid/view/KeyEvent;',
-            f'iput-object {registers[0]}, {instruction.registers[1]}, {instruction.parent.parent.class_name}->mLastUpKeyEvent:Landroid/view/KeyEvent;',
-        ])
+    # def patch_phoneWindowManagerInit(instruction):
+    #     registers = instruction.next.get_n_free_registers(2)
+    #     instruction.expand_after([
+    #         f'const {registers[0]}, 0x10000006',
+    #         f'const-string {registers[1]}, "Sys::VolumeWakeLock"',
+    #         f'invoke-virtual {{{instruction.registers[0]}, {registers[0]}, {registers[1]}}}, Landroid/os/PowerManager;->newWakeLock(ILjava/lang/String;)Landroid/os/PowerManager$WakeLock;',
+    #         f'move-result-object {registers[0]}',
+    #         f'iput-object {registers[0]}, {instruction.registers[1]}, {instruction.parent.parent.class_name}->mVolumeWakeLock:Landroid/os/PowerManager$WakeLock;',
+    #         f'const {registers[0]}, 0x0',
+    #         f'iput-object {registers[0]}, {instruction.registers[1]}, {instruction.parent.parent.class_name}->mLastDownKeyEvent:Landroid/view/KeyEvent;',
+    #         f'iput-object {registers[0]}, {instruction.registers[1]}, {instruction.parent.parent.class_name}->mLastUpKeyEvent:Landroid/view/KeyEvent;',
+    #     ])
 
-    def patch_windowManagerHandler(method):
-        method.first_instruction.get_n_free_registers(4)
-        method.first_instruction.expand_after([
-            'iget v0, p1, Landroid/os/Message;->what:I',
-            f'const v1, {hex(595)}',
-            'if-eq v0, v1, :handle_go_to_sleep',
-            f'const v1, {hex(596)}',
-            'if-eq v0, v1, :handle_fix_backlight',
-            f'const v1, {hex(600)}',
-            'if-eq v0, v1, :handle_down',
-            f'const v1, {hex(601)}',
-            'if-eq v0, v1, :handle_up',
-            'goto :handle_other_messages',
+    # def patch_windowManagerHandler(method):
+    #     method.first_instruction.get_n_free_registers(4)
+    #     method.first_instruction.expand_after([
+    #         'iget v0, p1, Landroid/os/Message;->what:I',
+    #         f'const v1, {hex(595)}',
+    #         'if-eq v0, v1, :handle_go_to_sleep',
+    #         f'const v1, {hex(596)}',
+    #         'if-eq v0, v1, :handle_fix_backlight',
+    #         f'const v1, {hex(600)}',
+    #         'if-eq v0, v1, :handle_down',
+    #         f'const v1, {hex(601)}',
+    #         'if-eq v0, v1, :handle_up',
+    #         'goto :handle_other_messages',
 
-            ':handle_down',
-            f'iget-object v0, p0, {method.parent.class_name}->this$0:{method.parent.class_name.split("$")[0]};',
-            f'invoke-virtual {{v0}}, {method.parent.class_name.split("$")[0]};->sendPastKeyDownEvent()V',
-            'return-void',
+    #         ':handle_down',
+    #         f'iget-object v0, p0, {method.parent.class_name}->this$0:{method.parent.class_name.split("$")[0]};',
+    #         f'invoke-virtual {{v0}}, {method.parent.class_name.split("$")[0]};->sendPastKeyDownEvent()V',
+    #         'return-void',
 
-            ':handle_up',
-            f'iget-object v0, p0, {method.parent.class_name}->this$0:{method.parent.class_name.split("$")[0]};',
-            f'invoke-virtual {{v0}}, {method.parent.class_name.split("$")[0]};->sendPastKeyUpEvent()V',
-            'return-void',
+    #         ':handle_up',
+    #         f'iget-object v0, p0, {method.parent.class_name}->this$0:{method.parent.class_name.split("$")[0]};',
+    #         f'invoke-virtual {{v0}}, {method.parent.class_name.split("$")[0]};->sendPastKeyUpEvent()V',
+    #         'return-void',
 
-            ':handle_fix_backlight',
-            'const-string v2, "sys.linevibrator_touch"',
-            'invoke-static {v2}, Landroid/os/SystemProperties;->get(Ljava/lang/String;)Ljava/lang/String;',
-            'move-result-object v0',
-            ':try_number_type_start',
-            'invoke-static {v0}, Ljava/lang/Integer;->parseInt(Ljava/lang/String;)I',
-            'move-result v0',
-            ':try_number_type_end',
-            '.catchall {:try_number_type_start .. :try_number_type_end} :skip_flipping',
-            'if-gez v0, :skip_flipping',
-            'const v1, 0x0',
-            'sub-int v0, v1, v0',
-            'new-instance v1, Ljava/lang/StringBuilder;',
-            'invoke-direct {v1}, Ljava/lang/StringBuilder;-><init>()V',
-            'invoke-virtual {v1, v0}, Ljava/lang/StringBuilder;->append(I)Ljava/lang/StringBuilder;',
-            'invoke-virtual {v1}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;',
-            'move-result-object v1',
-            'invoke-static {v2, v1}, Landroid/os/SystemProperties;->set(Ljava/lang/String;Ljava/lang/String;)V',
-            ':skip_flipping',
-            'return-void',
+    #         ':handle_fix_backlight',
+    #         'const-string v2, "sys.linevibrator_touch"',
+    #         'invoke-static {v2}, Landroid/os/SystemProperties;->get(Ljava/lang/String;)Ljava/lang/String;',
+    #         'move-result-object v0',
+    #         ':try_number_type_start',
+    #         'invoke-static {v0}, Ljava/lang/Integer;->parseInt(Ljava/lang/String;)I',
+    #         'move-result v0',
+    #         ':try_number_type_end',
+    #         '.catchall {:try_number_type_start .. :try_number_type_end} :skip_flipping',
+    #         'if-gez v0, :skip_flipping',
+    #         'const v1, 0x0',
+    #         'sub-int v0, v1, v0',
+    #         'new-instance v1, Ljava/lang/StringBuilder;',
+    #         'invoke-direct {v1}, Ljava/lang/StringBuilder;-><init>()V',
+    #         'invoke-virtual {v1, v0}, Ljava/lang/StringBuilder;->append(I)Ljava/lang/StringBuilder;',
+    #         'invoke-virtual {v1}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;',
+    #         'move-result-object v1',
+    #         'invoke-static {v2, v1}, Landroid/os/SystemProperties;->set(Ljava/lang/String;Ljava/lang/String;)V',
+    #         ':skip_flipping',
+    #         'return-void',
 
-            ':handle_go_to_sleep',
-            f'iget-object v0, p0, {method.parent.class_name}->this$0:{method.parent.class_name.split("$")[0]};',
-            f'iget-object v1, v0, {method.parent.class_name.split("$")[0]};->mPowerManager:Landroid/os/PowerManager;',
-            'invoke-static {}, Landroid/os/SystemClock;->uptimeMillis()J',
-            'move-result-wide v2',
-            'invoke-virtual {v1, v2, v3}, Landroid/os/PowerManager;->goToSleep(J)V',
-            f'invoke-virtual {{v0}}, {method.parent.class_name.split("$")[0]};->forceHideKeyguard()V',
-            'return-void',
+    #         ':handle_go_to_sleep',
+    #         f'iget-object v0, p0, {method.parent.class_name}->this$0:{method.parent.class_name.split("$")[0]};',
+    #         f'iget-object v1, v0, {method.parent.class_name.split("$")[0]};->mPowerManager:Landroid/os/PowerManager;',
+    #         'invoke-static {}, Landroid/os/SystemClock;->uptimeMillis()J',
+    #         'move-result-wide v2',
+    #         'invoke-virtual {v1, v2, v3}, Landroid/os/PowerManager;->goToSleep(J)V',
+    #         f'invoke-virtual {{v0}}, {method.parent.class_name.split("$")[0]};->forceHideKeyguard()V',
+    #         'return-void',
 
-            ':handle_other_messages',
-        ])
+    #         ':handle_other_messages',
+    #     ])
 
     JarPatcher(
         "d/system/framework/services.jar",
         [
-            FilePatch(
-                file_patterns = [r"PhoneWindowManager\.smali"],
-                patches = [
-                    InstructionPatch(
-                        method = "interceptKeyBeforeQueueing",
-                        instruction = InstructionDetails(
-                            instruction_type = InstructionType.FIELD_READ,
-                            field_name = Matcher.regex(r'm?[Hh]andle[Vv]olume[Kk]eys[Ii]n[Ww][Mm]'),
-                            data_type = "Z",
-                        ),
-                        action = lambda inst: inst.replace(f"const {inst.registers[0]}, 0x1")
-                    ),
-                    InstructionPatch(
-                        method = MethodDetails(
-                            name = Matcher.regex('<?init>?')
-                        ),
-                        instruction = InstructionDetails(
-                            instruction_type = InstructionType.FIELD_WRITE,
-                            field_name = Matcher.regex(r'm?[Pp]ower[Mm]anager$'),
-                            data_type = "Landroid/os/PowerManager;",
-                        ),
-                        action = patch_phoneWindowManagerInit
-                    ),
-                    InstructionPatch(
-                        method = "interceptKeyBeforeQueueing",
-                        action = patch_interceptKeyBeforeQueueing
-                    ),
-                    InstructionPatch(
-                        action = lambda file: file.smali_class.add_field(".field private mVolumeWakeLock:Landroid/os/PowerManager$WakeLock;")
-                    ),
-                    InstructionPatch(
-                        action = lambda file: file.smali_class.add_field(".field private mLastUpKeyEvent:Landroid/view/KeyEvent;")
-                    ),
-                    InstructionPatch(
-                        action = lambda file: file.smali_class.add_field(".field private mLastDownKeyEvent:Landroid/view/KeyEvent;")
-                    ),
-                ],
-            ),
-            FilePatch(
-                file_patterns = [r"PhoneWindowManager[a-zA-Z0-9\$]+Handler\.smali"],
-                patches = [
-                    InstructionPatch(
-                        method = "handleMessage",
-                        action = patch_windowManagerHandler
-                    ),
-                ],
-            ),
+            # FilePatch(
+            #     file_patterns = [r"PhoneWindowManager\.smali"],
+            #     patches = [
+            #         InstructionPatch(
+            #             method = "interceptKeyBeforeQueueing",
+            #             instruction = InstructionDetails(
+            #                 instruction_type = InstructionType.FIELD_READ,
+            #                 field_name = Matcher.regex(r'm?[Hh]andle[Vv]olume[Kk]eys[Ii]n[Ww][Mm]'),
+            #                 data_type = "Z",
+            #             ),
+            #             action = lambda inst: inst.replace(f"const {inst.registers[0]}, 0x1")
+            #         ),
+            #         InstructionPatch(
+            #             method = MethodDetails(
+            #                 name = Matcher.regex('<?init>?')
+            #             ),
+            #             instruction = InstructionDetails(
+            #                 instruction_type = InstructionType.FIELD_WRITE,
+            #                 field_name = Matcher.regex(r'm?[Pp]ower[Mm]anager$'),
+            #                 data_type = "Landroid/os/PowerManager;",
+            #             ),
+            #             action = patch_phoneWindowManagerInit
+            #         ),
+            #         InstructionPatch(
+            #             method = "interceptKeyBeforeQueueing",
+            #             action = patch_interceptKeyBeforeQueueing
+            #         ),
+            #         InstructionPatch(
+            #             action = lambda file: file.smali_class.add_field(".field private mVolumeWakeLock:Landroid/os/PowerManager$WakeLock;")
+            #         ),
+            #         InstructionPatch(
+            #             action = lambda file: file.smali_class.add_field(".field private mLastUpKeyEvent:Landroid/view/KeyEvent;")
+            #         ),
+            #         InstructionPatch(
+            #             action = lambda file: file.smali_class.add_field(".field private mLastDownKeyEvent:Landroid/view/KeyEvent;")
+            #         ),
+            #     ],
+            # ),
+            # FilePatch(
+            #     file_patterns = [r"PhoneWindowManager[a-zA-Z0-9\$]+Handler\.smali"],
+            #     patches = [
+            #         InstructionPatch(
+            #             method = "handleMessage",
+            #             action = patch_windowManagerHandler
+            #         ),
+            #     ],
+            # ),
             FilePatch(
                 file_patterns = [r"BatterySaverPolicy.*\.smali"],
                 patches = [
@@ -1071,7 +1071,8 @@ def patch_services_jar():
                     ),
                 ],
             )
-        ]
+        ],
+        "../magisk_module/system/framework/services.jar"
     ).patch(api = 29)
 
 def patch_systemui():
@@ -1373,7 +1374,8 @@ def patch_systemui():
                     )
                 ]
             ),
-        ]
+        ],
+        "../magisk_module/system/system_ext/priv-app/SystemUI/SystemUI.apk"
     ).patch(install = ["d/system/system_ext/priv-app/SystemUI/SystemUI.apk"], sign = True, api = 29)
 
 def patch_AddTintToCall():
@@ -1405,13 +1407,62 @@ def patch_AddTintToCall():
     with open('res/layout/swipe_up_down_method.xml', 'w') as file:
         ET.ElementTree(content_xml).write(file, encoding="unicode", xml_declaration=True)
 
+def patch_MessagingLightActionBar():
+    # namespaces = {
+    #     'android': 'http://schemas.android.com/apk/res/android',
+    #     'app': 'http://schemas.android.com/apk/res-auto'
+    # }
+
+    # for prefix, uri in namespaces.items():
+    #     ET.register_namespace(prefix, uri)
+
+    with open('res/values/styles.xml', 'r') as f:
+        content_xml = f.read()
+        
+    content_xml = content_xml.replace('<style name="LaunchTheme" parent="@style/Theme.AppCompat.DayNight.DarkActionBar">', '<style name="LaunchTheme" parent="@style/Theme.AppCompat.DayNight">')
+    content_xml = content_xml.replace('<style name="Theme.AppCompat.Light.DarkActionBar" parent="@style/Base.Theme.AppCompat.Light.DarkActionBar" />', '<style name="Theme.AppCompat.Light.DarkActionBar" parent="@style/Base.Theme.AppCompat.Light.LightActionBar" />')
+    content_xml = content_xml.replace('<style name="BugleBaseTheme" parent="@style/Theme.AppCompat.Light.DarkActionBar">', '''<style name="MyActionBarTitle" parent="@style/TextAppearance.AppCompat.Widget.ActionBar.Title">
+        <item name="android:textColor">@color/black</item>
+    </style>
+    <style name="Base.ThemeOverlay.AppCompat.Light.ActionBar" parent="@style/Base.ThemeOverlay.AppCompat.Light">
+        <item name="colorControlNormal">?android:textColorPrimary</item>
+        <item name="android:background">@color/white</item>
+        <item name="titleTextStyle">@style/MyActionBarTitle</item>
+        <item name="searchViewStyle">@style/Widget.AppCompat.SearchView.ActionBar</item>
+    </style>
+    <style name="ThemeOverlay.AppCompat.Light.ActionBar" parent="@style/Base.ThemeOverlay.AppCompat.Light.ActionBar" />
+<style name="Base.Theme.AppCompat.Light.LightActionBar" parent="@style/Base.Theme.AppCompat.Light">
+        <item name="actionBarPopupTheme">@style/ThemeOverlay.AppCompat.Light</item>
+        <item name="actionBarTheme">@style/ThemeOverlay.AppCompat.Light.ActionBar</item>
+        <item name="actionBarWidgetTheme">@null</item>
+        <item name="actionModeTheme">?actionBarTheme</item>
+        <item name="colorPrimary">@color/primary_material_light</item>
+        <item name="colorPrimaryDark">@color/primary_dark_material_light</item>
+        <item name="listChoiceBackgroundIndicator">@drawable/abc_list_selector_holo_light</item>
+    </style>
+    <style name="Theme.AppCompat.Light.LightActionBar" parent="@style/Base.Theme.AppCompat.Light.LightActionBar" />
+    <style name="BugleBaseTheme" parent="@style/Theme.AppCompat.Light.LightActionBar">''')
+
+    with open('res/values/styles.xml', 'w') as file:
+        file.write(content_xml)
 
 def patch_CallUI():
     JarPatcher(
         "d/system/product/priv-app/Dialer/Dialer.apk",
         [
             FunctionPatch(action=patch_AddTintToCall)
-        ]
+        ],
+        "../magisk_module/system/product/priv-app/Dialer/Dialer.apk"
+    ).patch(sign = True, use_res = True, use_src = False, api = 29)
+
+
+def patch_Messaging():
+    JarPatcher(
+        "d/system/product/app/messaging/messaging.apk",
+        [
+            FunctionPatch(action=patch_MessagingLightActionBar)
+        ],
+        "../magisk_module/system/product/app/messaging/messaging.apk"
     ).patch(sign = True, use_res = True, use_src = False, api = 29)
 
 def update_build_prop():
@@ -1440,6 +1491,9 @@ def update_build_prop():
         "sys.disable_ext_animation": "1",
         # Recent apps
         "ro.recents.grid": "true",
+
+        ###ADD 20220325 ZJH for line vibrator
+        "ro.vendor.line.vibrator": "true"
     }
     logging.info("Updating build.prop...")
     with open("d/system/build.prop", "r") as file:
@@ -1483,6 +1537,7 @@ def update_vndk_rc():
         "    exec_background u:r:phhsu_daemon:s0 root -- /system/bin/chcon u:object_r:sysfs_leds:s0 /sys/class/backlight/ktd3137-bl-4/brightness\n",
         "    exec_background u:r:phhsu_daemon:s0 root -- /system/bin/sh -c \"if [ ! -f /data/local/tmp/reset_carriers_done ]; then /system/bin/touch /data/local/tmp/reset_carriers_done; /system/bin/content delete --uri content://telephony/carriers/restore; fi\"\n",
         "    exec_background u:r:phhsu_daemon:s0 root -- /system/bin/sh -c \"if [ ! -f /data/local/tmp/disable_ambient_display ]; then /system/bin/touch /data/local/tmp/disable_ambient_display; /system/bin/settings put secure doze_enabled 0; fi\"\n",
+        "    exec_background u:r:phhsu_daemon:s0 root -- /system/bin/sh -c \"echo 0 > /sys/debug_control/type_c_disable_otg\"\n"
     ]
 
     found_boot_completed = False
@@ -1499,6 +1554,7 @@ def update_vndk_rc():
                     if entry not in lines:
                         file.write(entry)
 
+ 
         if not any("on property:sys.linevibrator_open=*" in line for line in lines):
             file.write("\non property:sys.linevibrator_open=*\n")
             file.write("    write /sys/class/backlight/ktd3137-bl-3/brightness ${sys.linevibrator_open}\n")
@@ -1510,6 +1566,8 @@ def update_vndk_rc():
             file.write("    write /sys/class/backlight/aw99703-bl-2/brightness ${sys.linevibrator_short}\n\n")
 
 def main():
+
+    subprocess.run(['apktool', '--version'], check=True)
     if len(sys.argv) != 2:
         logging.error("Usage: sudo python patch_system_img.py [/path/to/system.img]")
         exit_now(1)
@@ -1541,6 +1599,11 @@ def main():
         replace_file("d/system/app/ims-caf-u.apk")
         replace_file("d/system/etc/hosts")
         update_build_prop()
+        # try:
+        #     patch_Messaging()
+        #     pass
+        # except subprocess.CalledProcessError:
+        #     logging.warning('messaging app patching error, skipping.')
         try:
             patch_CallUI()
             pass
@@ -1555,6 +1618,7 @@ def main():
 
     os.rename("s-ab-raw.img", "system_patched.img")
     shutil.move("system_patched.img", "../system_patched.img")
+    run_command('zip -r ../hisensea9_magisk_module.zip *', cwd="../magisk_module")
 
     logging.info("Process completed. The patched system image is system_patched.img")
 
