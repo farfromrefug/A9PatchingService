@@ -9,6 +9,7 @@ import android.provider.Settings
 import android.view.MenuItem
 import android.view.accessibility.AccessibilityManager
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.Toolbar
 import androidx.preference.PreferenceFragmentCompat
 
 
@@ -22,6 +23,8 @@ class SettingsActivity : AppCompatActivity() {
                 .replace(R.id.settings, SettingsFragment())
                 .commit()
         }
+        val toolbar = findViewById(R.id.toolbar) as Toolbar;
+        setSupportActionBar(toolbar);
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         checkPermissions()
     }
