@@ -306,9 +306,9 @@ def patch_services_jar():
     def get_shader_variant(shader_name, centered=False, opacity = 0.91, bg_opacity = 0.0, mix_color = 0.0):
         with open(f'../shaders/{shader_name}.frag', 'r') as f:
             content = f.read()
-        radius = 0.25 if centered else 0.05
-        center_x = 0.5 if centered else round(radius + 0.05, 3)
-        center_y = 1.0 if centered else round(1.9 - radius, 3)
+        radius = 0.25 if centered else 0.04
+        center_x = 0.5 if centered else round(1 - radius - 0.04, 3)
+        center_y = 1.0 if centered else round(2 - radius - 0.04, 3)
         op_name = str(opacity).replace('.', '_')
         return format_eval(content, center_x = center_x, center_y = center_y, opacity = opacity, radius = radius, bg_opacity = bg_opacity, mix_color = mix_color, bg_mix_color = 1.0 - mix_color)
 
@@ -935,15 +935,15 @@ def patch_services_jar():
                         ),
                         action = patch_updatePowerStateInternal,
                     ),
-                    InstructionPatch(
-                        instruction = InstructionDetails(
-                            instruction_type = InstructionType.METHOD_INVOKE,
-                            return_type = "V",
-                            method = "end",
-                            class_name = Matcher.regex(r".*ObjectAnimator;?"),
-                        ),
-                        action = lambda inst: inst.prev_known().field_name == 'mColorFadeOffAnimator' and setattr(inst, 'method', 'start')
-                    ),
+                    # InstructionPatch(
+                    #     instruction = InstructionDetails(
+                    #         instruction_type = InstructionType.METHOD_INVOKE,
+                    #         return_type = "V",
+                    #         method = "end",
+                    #         class_name = Matcher.regex(r".*ObjectAnimator;?"),
+                    #     ),
+                    #     action = lambda inst: inst.prev_known().field_name == 'mColorFadeOffAnimator' and setattr(inst, 'method', 'start')
+                    # ),
                     InstructionPatch(
                         instruction = InstructionDetails(
                             instruction_type = InstructionType.METHOD_INVOKE,
@@ -1232,6 +1232,7 @@ def patch_systemui():
                     ),
                 ],
             ),
+            # animation while turning the screen off when unlocked
             FilePatch(
                 file_patterns = [r"UnlockedScreenOffAnimationController.*\.smali"],
                 patches = [
@@ -1354,6 +1355,7 @@ def patch_systemui():
                     ),
                 ],
             ),
+            # seems to be for AOD
             FilePatch(
                 file_patterns = [r".*KeyguardViewMediator.*\.smali"],
                 patches = [
@@ -1421,12 +1423,13 @@ def patch_MessagingLightActionBar():
         
     content_xml = content_xml.replace('<style name="LaunchTheme" parent="@style/Theme.AppCompat.DayNight.DarkActionBar">', '<style name="LaunchTheme" parent="@style/Theme.AppCompat.DayNight">')
     content_xml = content_xml.replace('<style name="Theme.AppCompat.Light.DarkActionBar" parent="@style/Base.Theme.AppCompat.Light.DarkActionBar" />', '<style name="Theme.AppCompat.Light.DarkActionBar" parent="@style/Base.Theme.AppCompat.Light.LightActionBar" />')
+    content_xml = content_xml.replace('<item name="android:textColor">@color/action_bar_title_text_color</item>', '<item name="android:textColor">#000000</item>')
     content_xml = content_xml.replace('<style name="BugleBaseTheme" parent="@style/Theme.AppCompat.Light.DarkActionBar">', '''<style name="MyActionBarTitle" parent="@style/TextAppearance.AppCompat.Widget.ActionBar.Title">
-        <item name="android:textColor">@color/black</item>
+        <item name="android:textColor">#000000</item>
     </style>
     <style name="Base.ThemeOverlay.AppCompat.Light.ActionBar" parent="@style/Base.ThemeOverlay.AppCompat.Light">
         <item name="colorControlNormal">?android:textColorPrimary</item>
-        <item name="android:background">@color/white</item>
+        <item name="android:background">#FFFFFF</item>
         <item name="titleTextStyle">@style/MyActionBarTitle</item>
         <item name="searchViewStyle">@style/Widget.AppCompat.SearchView.ActionBar</item>
     </style>
@@ -1445,6 +1448,19 @@ def patch_MessagingLightActionBar():
 
     with open('res/values/styles.xml', 'w') as file:
         file.write(content_xml)
+
+
+    with open('res/drawable/message_bubble_incoming_no_arrow.xml', 'r') as f:
+        drawable_xml = f.read()
+    drawable_xml = drawable_xml.replace('<solid android:color="@color/color_filter_base_color" />', '<solid android:color="#ffffff" /><stroke android:width="1dp" android:color="#000000" />')
+    with open('res/drawable/message_bubble_incoming_no_arrow.xml', 'w') as file:
+        file.write(drawable_xml)
+
+    with open('res/drawable/message_bubble_outgoing_no_arrow.xml', 'r') as f:
+        drawable_xml = f.read()
+    drawable_xml = drawable_xml.replace('<solid android:color="@color/color_filter_base_color" />', '<solid android:color="#ffffff" /><stroke android:width="1dp" android:color="#000000" />')
+    with open('res/drawable/message_bubble_outgoing_no_arrow.xml', 'w') as file:
+        file.write(drawable_xml)
 
 def patch_CallUI():
     JarPatcher(
@@ -1599,11 +1615,11 @@ def main():
         replace_file("d/system/app/ims-caf-u.apk")
         replace_file("d/system/etc/hosts")
         update_build_prop()
-        # try:
-        #     patch_Messaging()
-        #     pass
-        # except subprocess.CalledProcessError:
-        #     logging.warning('messaging app patching error, skipping.')
+        try:
+            patch_Messaging()
+            pass
+        except subprocess.CalledProcessError:
+            logging.warning('messaging app patching error, skipping.')
         try:
             patch_CallUI()
             pass
