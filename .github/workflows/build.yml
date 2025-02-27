@@ -1,0 +1,33 @@
+name: build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - run:  echo "LOS_BUILD=lineage-21.0-20250222-UNOFFICIAL-arm64_bvN.img" >> $GITHUB_ENV
+
+      
+      - run: |
+          wget https://sourceforge.net/projects/andyyan-gsi/files/lineage-21-td/${{ env.LOS_BUILD }}.gz/download
+          tar -xzf ${{ env.LOS_BUILD }}.gz
+
+      - run: |
+          cd app/external_scripts/system_img_patcher
+          APK_TOOL=$(pwd)/apktool_2.11.0.jar ./patch_system_img.sh $(pwd)/../../../${{ env.LOS_BUILD }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name:  ${{ env.APP_ID }}.${{ env.VERSION_STR }}
+          path: |
+            app/external_scripts/system_img_patcher/hisensea9_magisk_module.zip
+          retention-days: 30
+          if-no-files-found: error # 'warn' or 'ignore' are also available, defaults to `warn`

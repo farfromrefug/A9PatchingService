@@ -818,7 +818,6 @@ def patch_services_jar():
 
     #         ':handle_other_messages',
     #     ])
-
     JarPatcher(
         "d/system/framework/services.jar",
         [
@@ -1074,6 +1073,82 @@ def patch_services_jar():
         ],
         "../magisk_module/system/framework/services.jar"
     ).patch(api = 29)
+
+def patch_generateLayout(instruction):
+    # registers = instruction.prev.get_n_free_registers(2)
+    logging.info(f"patch_generateLayout... {instruction.prev.registers}")
+    instruction.prev.expand_before([
+        f"const/16 v7, 0xFFFFFFFF",
+        # f"move-object/from16 v1, p0",
+        f"iput v7, v0, Lcom/android/internal/policy/PhoneWindow;->mNavigationBarColor:I",
+        f"iput v7, v0, Lcom/android/internal/policy/PhoneWindow;->mStatusBarColor:I",
+        f"const/16 v7, -1",
+        f"iput v7, v0, Lcom/android/internal/policy/PhoneWindow;->mNavigationBarDividerColor:I",
+        f'invoke-virtual/range {{p1 .. p1}}, Lcom/android/internal/policy/DecorView;->getSystemUiVisibility()I',
+        f'move-result v7',
+        f"const/16 v8, 0x2000",
+        f'or-int/2addr v7, v8',
+        f"const/16 v8, 0x10",
+        f'or-int/2addr v7, v8',
+        f'move-object/from16 v8, p1',
+        f'invoke-virtual {{v8, v7}}, Lcom/android/internal/policy/DecorView;->setSystemUiVisibility(I)V',
+        f'invoke-virtual/range {{p1 .. p1}}, Lcom/android/internal/policy/DecorView;->getWindowInsetsController()Landroid/view/WindowInsetsController;',
+        f'move-result-object v8',
+        f"const/16 v7, 0x18",
+        f'invoke-interface {{v8, v7, v7}}, Landroid/view/WindowInsetsController;->setSystemBarsAppearance(II)V',
+      
+    ])
+def patch_framework_jar():
+    
+    JarPatcher(
+        "d/system/framework/framework.jar",
+        [
+            # FilePatch(
+            #     file_patterns = [r"PhoneWindow\.smali"],
+            #     patches = [
+            #         InstructionPatch(
+            #             method = "generateLayout",
+            #             instruction = InstructionDetails(
+            #                 instruction_type = InstructionType.FIELD_WRITE,
+            #                 field_name = 'dimAmount',
+            #             ),
+            #             action = lambda instruction: instruction.insert_before(f'const/4 {instruction.registers[0]}, 0'),
+            #         ),
+            #         InstructionPatch(
+            #             method = "generateLayout",
+            #             instruction = InstructionDetails(
+            #                 instruction_type = InstructionType.METHOD_INVOKE,
+            #                 method = 'setBlurBehindRadius',
+            #             ),
+            #             action = lambda instruction: instruction.insert_before(f'const/4 {instruction.registers[0]}, 0'),
+            #         ),
+            #         InstructionPatch(
+            #             instruction = InstructionDetails(
+            #                 instruction_type = InstructionType.FIELD_WRITE,
+            #                 field_name = Matcher.regex(r"mNavigationBarColor|mStatusBarColor"),
+            #             ),
+            #             action = lambda instruction: instruction.insert_before(f'const/16 {instruction.registers[0]}, 0xFFFFFFFF'),
+            #         ),
+            #         InstructionPatch(
+            #             instruction = InstructionDetails(
+            #                 instruction_type = InstructionType.FIELD_WRITE,
+            #                 field_name = Matcher.regex(r"mNavigationBarDividerColor"),
+            #             ),
+            #             action = lambda instruction: instruction.insert_before(f'const {instruction.registers[0]}, -1'),
+            #         ),
+            #         InstructionPatch(
+            #             method = "generateLayout",
+            #             instruction = InstructionDetails(
+            #                 instruction_type = InstructionType.METHOD_INVOKE,
+            #                 method = "startChanging",
+            #             ),
+            #             action = patch_generateLayout
+            #         ),
+            #     ]
+            # )
+        ],
+        "../magisk_module/system/framework/framework.jar"
+    ).patch(api = 34)
 
 def patch_systemui():
     values_per_scrim_enum = {
@@ -1376,9 +1451,23 @@ def patch_systemui():
                     )
                 ]
             ),
+            FunctionPatch(action=patch_SystemUIRes)
         ],
         "../magisk_module/system/system_ext/priv-app/SystemUI/SystemUI.apk"
-    ).patch(install = ["d/system/system_ext/priv-app/SystemUI/SystemUI.apk"], sign = True, api = 29)
+    ).patch(install = ["d/system/system_ext/priv-app/SystemUI/SystemUI.apk"], sign = True, use_res = True, api = 29)
+
+def patch_SystemUIRes():
+    with open('res/values/styles.xml', 'r') as f:
+        content_xml = f.read()
+        
+    content_xml = content_xml.replace('<style name="Theme.SystemUI.MediaProjectionAppSelector" parent="@android:style/Theme.DeviceDefault.Chooser" />', '''<style name="Theme.SystemUI.MediaProjectionAppSelector" parent="@android:style/Theme.DeviceDefault.Chooser" >
+    <item name="android:backgroundDimAmount">0</item>
+    </style>
+''')
+    content_xml = content_xml.replace('<item name="android:backgroundDimAmount">0.32</item>', '<item name="android:backgroundDimAmount">0</item>')
+    
+    with open('res/values/styles.xml', 'w') as file:
+        file.write(content_xml)
 
 def patch_AddTintToCall():
     namespaces = {
@@ -1604,6 +1693,7 @@ def main():
     run_command('e2fsck -E unshare_blocks -y -f s-ab-raw.img')
 
     with MountImage('s-ab-raw.img', 'd'):
+        # patch_framework_jar()
         replace_file("d/system/priv-app/TrebleApp/TrebleApp.apk")
         replace_file("d/system/product/overlay/treble-overlay-Hisense-HLTE556N.apk")
         replace_file("d/system/bin/a9_eink_server", perms = 0o755, owner = "root:2000", secontext = "u:object_r:phhsu_exec:s0")
