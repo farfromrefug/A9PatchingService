@@ -18,12 +18,14 @@ jobs:
           distribution: 'temurin' # See 'Supported distributions' for available options
           java-version: '21'
           
+      - run: java --version
+  
       - run: | 
           sudo apt install apktool attr
           cp app/external_scripts/system_img_patcher/apktool /usr/local/bin
 
       - run:  echo "LOS_BUILD=lineage-21.0-20250222-UNOFFICIAL-arm64_bvN.img" >> $GITHUB_ENV
-
+      - run:  echo "APK_TOOL_VERSION=apktool-2.10.1-dirty >> $GITHUB_ENV
       
       - run: |
           wget --quiet https://sourceforge.net/projects/andyyan-gsi/files/lineage-21-td/${{ env.LOS_BUILD }}.gz
@@ -33,11 +35,11 @@ jobs:
 
       - run: |
           cd app/external_scripts/system_img_patcher
-          sudo APK_TOOL=$(pwd)/apktool_2.11.0.jar ./patch_system_img.sh $(pwd)/../../../${{ env.LOS_BUILD }}
+          sudo APK_TOOL=$(pwd)/${{ env.APK_TOOL_VERSION }}.jar ./patch_system_img.sh $(pwd)/../../../${{ env.LOS_BUILD }}
 
       - uses: actions/upload-artifact@v4
         with:
-          name:  ${{ env.APP_ID }}.${{ env.VERSION_STR }}
+          name: hisensea9_magisk_module
           path: |
             app/external_scripts/system_img_patcher/hisensea9_magisk_module.zip
           retention-days: 30
