@@ -25,7 +25,7 @@ jobs:
           cp app/external_scripts/system_img_patcher/apktool /usr/local/bin
 
       - run:  echo "LOS_BUILD=lineage-21.0-20250222-UNOFFICIAL-arm64_bvN.img" >> $GITHUB_ENV
-      - run:  echo "APK_TOOL_VERSION=apktool-2.10.1-dirty" >> $GITHUB_ENV
+      - run:  echo "APK_TOOL_VERSION=apktool-2.11.0" >> $GITHUB_ENV
       
       - run: |
           wget --quiet https://sourceforge.net/projects/andyyan-gsi/files/lineage-21-td/${{ env.LOS_BUILD }}.gz
