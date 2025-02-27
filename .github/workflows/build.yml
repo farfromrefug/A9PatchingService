@@ -24,7 +24,7 @@ jobs:
           ls -la
 
       - run: |
-          tar -xf ${{ env.LOS_BUILD }}.gz
+          gzip -d ${{ env.LOS_BUILD }}.gz
           ls -la
 
       - run: |
