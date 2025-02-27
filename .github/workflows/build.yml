@@ -17,6 +17,8 @@ jobs:
       - run: | 
           sudo apt install apktool attr
           cat $(which apktool)
+          cp app/external_scripts/system_img_patcher/apktool /usr/local/bin
+          cat $(which apktool)
 
       - run:  echo "LOS_BUILD=lineage-21.0-20250222-UNOFFICIAL-arm64_bvN.img" >> $GITHUB_ENV
 
