@@ -17,11 +17,13 @@ jobs:
 
       
       - run: |
-          wget https://sourceforge.net/projects/andyyan-gsi/files/lineage-21-td/${{ env.LOS_BUILD }}.gz
+          wget --quiet https://sourceforge.net/projects/andyyan-gsi/files/lineage-21-td/${{ env.LOS_BUILD }}.gz
           tar -xzf ${{ env.LOS_BUILD }}.gz
+          ls -la
 
       - run: |
           cd app/external_scripts/system_img_patcher
+          ls -la
           APK_TOOL=$(pwd)/apktool_2.11.0.jar ./patch_system_img.sh $(pwd)/../../../${{ env.LOS_BUILD }}
 
       - uses: actions/upload-artifact@v4
