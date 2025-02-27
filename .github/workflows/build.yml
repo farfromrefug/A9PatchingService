@@ -17,7 +17,7 @@ jobs:
 
       
       - run: |
-          wget https://sourceforge.net/projects/andyyan-gsi/files/lineage-21-td/${{ env.LOS_BUILD }}.gz/download
+          wget https://sourceforge.net/projects/andyyan-gsi/files/lineage-21-td/${{ env.LOS_BUILD }}.gz
           tar -xzf ${{ env.LOS_BUILD }}.gz
 
       - run: |
