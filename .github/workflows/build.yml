@@ -14,7 +14,9 @@ jobs:
         uses: actions/checkout@v4
 
 
-      - run: sudo apt install apktool attr
+      - run: | 
+          sudo apt install apktool attr
+          cat $(which apktool)
 
       - run:  echo "LOS_BUILD=lineage-21.0-20250222-UNOFFICIAL-arm64_bvN.img" >> $GITHUB_ENV
 
@@ -31,6 +33,7 @@ jobs:
           cd app/external_scripts/system_img_patcher
           ls -la
           echo "$(pwd)/apktool_2.11.0.jar"
+          APK_TOOL=$(pwd)/apktool_2.11.0.jar apktool  --version
           sudo APK_TOOL=$(pwd)/apktool_2.11.0.jar ./patch_system_img.sh $(pwd)/../../../${{ env.LOS_BUILD }}
 
       - uses: actions/upload-artifact@v4
