@@ -116,6 +116,11 @@
             app:title="Set Refresh Mode to Clear on Lock" />
 
         <SwitchPreferenceCompat
+            app:key="double_tap_to_wake"
+            app:summary="Wake the screen by tapping twice. Can wake in a pocket."
+            app:title="Double Tap to Wake" />
+
+        <SwitchPreferenceCompat
             app:key="disable_perapprefresh"
             app:disableDependentsState="true"
             app:summaryOff="Disable setting refresh mode per application"
