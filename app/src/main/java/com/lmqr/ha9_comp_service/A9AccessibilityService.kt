@@ -55,6 +55,8 @@ class A9AccessibilityService : AccessibilityService(),
                 Intent.ACTION_SCREEN_OFF -> {
                     isScreenOn = false
                     menuBinding.close()
+                    if (sharedPreferences.getBoolean("double_tap_to_wake", false))
+                        commandRunner.runCommands(arrayOf(Commands.DOUBLE_TAP(true)))
                     if (sharedPreferences.getBoolean("refresh_on_lock", false))
                         handler.postDelayed({
                             commandRunner.runCommands(arrayOf(Commands.SPEED_CLEAR))
@@ -62,6 +64,7 @@ class A9AccessibilityService : AccessibilityService(),
                 }
                 Intent.ACTION_SCREEN_ON -> {
                     isScreenOn = true
+                    commandRunner.runCommands(arrayOf(Commands.DOUBLE_TAP(false)))
                     if (sharedPreferences.getBoolean("refresh_on_lock", false))
                         refreshModeManager.applyMode()
                 }
@@ -76,6 +79,12 @@ class A9AccessibilityService : AccessibilityService(),
             when (intent.action) {
                 "EINK_FORCE_CLEAR" -> {
                     commandRunner.runCommands(arrayOf(Commands.FORCE_CLEAR))
+                }
+
+                // Commits the current framebuffer without the full clear waveform, so the panel
+                // repaints without the two flashes EINK_FORCE_CLEAR costs.
+                "EINK_COMMIT_BITMAP" -> {
+                    commandRunner.runCommands(arrayOf(Commands.COMMIT_BITMAP))
                 }
 
                 "EINK_REFRESH_SPEED_CLEAR" -> {
@@ -141,6 +150,7 @@ class A9AccessibilityService : AccessibilityService(),
 
         val filterEink = IntentFilter()
         filterEink.addAction("EINK_FORCE_CLEAR")
+        filterEink.addAction("EINK_COMMIT_BITMAP")
         filterEink.addAction("EINK_REFRESH_SPEED_CLEAR")
         filterEink.addAction("EINK_REFRESH_SPEED_BALANCED")
         filterEink.addAction("EINK_REFRESH_SPEED_SMOOTH")

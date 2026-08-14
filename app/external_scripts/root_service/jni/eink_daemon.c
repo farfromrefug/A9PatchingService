@@ -12,6 +12,14 @@
 #include <sys/xattr.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <dirent.h>
+#include <limits.h>
+#include <poll.h>
+#include <pthread.h>
+#include <stdint.h>
+#include <time.h>
+#include <sys/ioctl.h>
+#include <linux/input.h>
 
 static const char* kTAG = "a9EinkService";
 #define LOGI(...) ((void)__android_log_print(ANDROID_LOG_INFO, kTAG, __VA_ARGS__))
@@ -19,6 +27,30 @@ static const char* kTAG = "a9EinkService";
 
 #define SOCKET_NAME "0a9_eink_socket"
 #define BUFFER_SIZE 512
+
+/*
+ * Double tap to wake.
+ *
+ * The touch controller keeps scanning while the display is off and reports ordinary BTN_TOUCH
+ * events, but it never emits KEY_WAKEUP and the device is not marked as waking, so Android
+ * discards those events before any of its own code sees them. Detecting the gesture here, from
+ * the evdev node directly, sidesteps the input policy entirely. Reading the node does not
+ * consume the events, so normal touch handling is unaffected.
+ *
+ * Armed and disarmed over the socket ("dt1"/"dt0") by the service, which knows the screen state.
+ * While disarmed the touch device is closed and the thread blocks on the control pipe alone, so
+ * a pocket full of touches costs nothing. The controller itself scans regardless of any of this.
+ */
+#define TOUCH_DEVICE_NAME "atmel"
+#define TAP_MAX_DURATION_MS 250
+#define TAP_MAX_MOVEMENT 40
+#define DOUBLE_TAP_MAX_GAP_MS 400
+#define KEYCODE_WAKEUP "224"
+#define EVENT_BATCH 64
+
+static volatile int gDoubleTapEnabled = 0;
+/* Lets a socket command interrupt the watcher's poll() straight away. */
+static int gDoubleTapPipe[2] = {-1, -1};
 
 static const char* theme_styles[] = {
         "TONAL_SPOT",
@@ -235,6 +267,241 @@ void writeWakeOnVolumeProp(const char* value) {
     }
 }
 
+static long long eventTimeMs(const struct timeval* tv) {
+    return (long long)tv->tv_sec * 1000LL + (long long)tv->tv_usec / 1000LL;
+}
+
+/*
+ * Restricts what this fd is woken for. Without it every finger movement delivers a stream of
+ * events we throw away, and each one wakes the daemon. EVIOCSMASK is per-client, so this does
+ * not affect what Android's own InputReader receives. Unsupported before Linux 4.4, where the
+ * ioctl simply fails and we fall back to filtering in userspace.
+ */
+static void restrictEventMask(int fd, unsigned int type, const unsigned int* codes, size_t count) {
+    unsigned char bits[(KEY_MAX + 7) / 8];
+    memset(bits, 0, sizeof(bits));
+    for (size_t i = 0; i < count; i++) {
+        bits[codes[i] / 8] |= (unsigned char)(1 << (codes[i] % 8));
+    }
+
+    struct input_mask mask;
+    memset(&mask, 0, sizeof(mask));
+    mask.type = type;
+    mask.codes_size = sizeof(bits);
+    mask.codes_ptr = (__u64)(uintptr_t)bits;
+    ioctl(fd, EVIOCSMASK, &mask);
+}
+
+static void configureTouchDevice(int fd) {
+    /* Event timestamps default to CLOCK_REALTIME, which can jump under NTP and produce
+       nonsense gaps between taps. */
+    int clock_id = CLOCK_MONOTONIC;
+    ioctl(fd, EVIOCSCLOCKID, &clock_id);
+
+    static const unsigned int keyCodes[] = { BTN_TOUCH };
+    static const unsigned int absCodes[] = { ABS_MT_POSITION_X, ABS_MT_POSITION_Y };
+    restrictEventMask(fd, EV_KEY, keyCodes, 1);
+    restrictEventMask(fd, EV_ABS, absCodes, 2);
+    /* Nothing else is used, including EV_SYN, which is a third of the stream on its own. */
+    restrictEventMask(fd, EV_SYN, NULL, 0);
+    restrictEventMask(fd, EV_MSC, NULL, 0);
+}
+
+static int openTouchDevice() {
+    DIR* dir = opendir("/dev/input");
+    if (dir == NULL) {
+        LOGE("Error opening /dev/input: %s", strerror(errno));
+        return -1;
+    }
+
+    int found = -1;
+    struct dirent* entry;
+    while (found < 0 && (entry = readdir(dir)) != NULL) {
+        if (strncmp(entry->d_name, "event", 5) != 0) {
+            continue;
+        }
+
+        char path[PATH_MAX];
+        snprintf(path, sizeof(path), "/dev/input/%s", entry->d_name);
+        int fd = open(path, O_RDONLY);
+        if (fd == -1) {
+            continue;
+        }
+
+        char name[128] = {0};
+        if (ioctl(fd, EVIOCGNAME(sizeof(name) - 1), name) >= 0
+                && strstr(name, TOUCH_DEVICE_NAME) != NULL) {
+            LOGI("Double tap watching %s (%s)", path, name);
+            configureTouchDevice(fd);
+            found = fd;
+        } else {
+            close(fd);
+        }
+    }
+
+    closedir(dir);
+    if (found < 0) {
+        LOGE("No input device matching '%s'", TOUCH_DEVICE_NAME);
+    }
+    return found;
+}
+
+static void injectWakeKey() {
+    pid_t pid = fork();
+    if (pid == 0) {
+        execl("/system/bin/input", "input", "keyevent", KEYCODE_WAKEUP, (char *)NULL);
+        LOGE("execl input failed: %s", strerror(errno));
+        _exit(EXIT_FAILURE);
+    } else if (pid < 0) {
+        LOGE("fork failed: %s", strerror(errno));
+    } else {
+        waitpid(pid, NULL, 0);
+    }
+}
+
+static void drainDoubleTapPipe() {
+    char buffer[16];
+    while (read(gDoubleTapPipe[0], buffer, sizeof(buffer)) > 0) {
+    }
+}
+
+/* Wakes the watcher so an arm/disarm takes effect without waiting on a touch. */
+static void signalDoubleTapChange() {
+    if (gDoubleTapPipe[1] >= 0) {
+        char value = 1;
+        ssize_t written = write(gDoubleTapPipe[1], &value, 1);
+        (void)written;
+    }
+}
+
+/* Blocks until a socket command arrives, or timeout_ms elapses (-1 to wait forever). */
+static void waitForDoubleTapChange(int timeout_ms) {
+    struct pollfd pfd;
+    pfd.fd = gDoubleTapPipe[0];
+    pfd.events = POLLIN;
+    if (poll(&pfd, 1, timeout_ms) > 0) {
+        drainDoubleTapPipe();
+    }
+}
+
+_Noreturn static void* doubleTapThread(void* arg) {
+    (void)arg;
+
+    int fd = -1;
+    long long lastTapTime = -1;
+    long long downTime = -1;
+    int downX = 0, downY = 0, x = 0, y = 0, movement = 0, tracking = 0;
+
+    while (1) {
+        if (!gDoubleTapEnabled) {
+            /* Disarmed: close the device so touches cannot wake this thread at all. */
+            if (fd >= 0) {
+                close(fd);
+                fd = -1;
+            }
+            tracking = 0;
+            lastTapTime = -1;
+            waitForDoubleTapChange(-1);
+            continue;
+        }
+
+        if (fd < 0) {
+            fd = openTouchDevice();
+            if (fd < 0) {
+                waitForDoubleTapChange(5000);
+                continue;
+            }
+        }
+
+        struct pollfd pfds[2];
+        pfds[0].fd = fd;
+        pfds[0].events = POLLIN;
+        pfds[1].fd = gDoubleTapPipe[0];
+        pfds[1].events = POLLIN;
+        if (poll(pfds, 2, -1) < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            LOGE("Touch device poll failed: %s", strerror(errno));
+            close(fd);
+            fd = -1;
+            continue;
+        }
+        if (pfds[1].revents & POLLIN) {
+            drainDoubleTapPipe();
+            continue;
+        }
+        if (!(pfds[0].revents & POLLIN)) {
+            continue;
+        }
+
+        /* One syscall per batch rather than per event: a single swipe is hundreds of them. */
+        struct input_event events[EVENT_BATCH];
+        ssize_t num_read = read(fd, events, sizeof(events));
+        if (num_read < (ssize_t)sizeof(struct input_event)) {
+            LOGE("Touch device read failed: %s", strerror(errno));
+            close(fd);
+            fd = -1;
+            tracking = 0;
+            lastTapTime = -1;
+            continue;
+        }
+
+        size_t count = (size_t)num_read / sizeof(struct input_event);
+        for (size_t i = 0; i < count; i++) {
+            const struct input_event* ev = &events[i];
+
+            if (ev->type == EV_ABS) {
+                if (ev->code == ABS_MT_POSITION_X) {
+                    x = ev->value;
+                } else if (ev->code == ABS_MT_POSITION_Y) {
+                    y = ev->value;
+                }
+                if (tracking) {
+                    int dx = abs(x - downX);
+                    int dy = abs(y - downY);
+                    int distance = dx > dy ? dx : dy;
+                    if (distance > movement) {
+                        movement = distance;
+                    }
+                }
+                continue;
+            }
+
+            if (ev->type != EV_KEY || ev->code != BTN_TOUCH) {
+                continue;
+            }
+
+            long long now = eventTimeMs(&ev->time);
+            if (ev->value == 1) {
+                /* Position events of a packet arrive before BTN_TOUCH, so x/y are current. */
+                downTime = now;
+                downX = x;
+                downY = y;
+                movement = 0;
+                tracking = 1;
+                continue;
+            }
+
+            if (!tracking) {
+                continue;
+            }
+            tracking = 0;
+
+            int isTap = (now - downTime) <= TAP_MAX_DURATION_MS && movement <= TAP_MAX_MOVEMENT;
+            if (!isTap) {
+                lastTapTime = -1;
+            } else if (lastTapTime > 0 && (now - lastTapTime) <= DOUBLE_TAP_MAX_GAP_MS) {
+                LOGI("Double tap detected, waking");
+                lastTapTime = -1;
+                injectWakeKey();
+            } else {
+                lastTapTime = now;
+            }
+        }
+    }
+}
+
 void processCommand(const char* command) {
     if (strcmp(command, "cm") == 0) {
         epdCommitBitmap();
@@ -266,6 +533,11 @@ void processCommand(const char* command) {
     } else if (strncmp(command, "wov", 3) == 0) {
         if(valid_number(command+3))
             writeWakeOnVolumeProp(command+3);
+    } else if (strncmp(command, "dt", 2) == 0) {
+        if(valid_number(command+2)) {
+            gDoubleTapEnabled = atoi(command+2) != 0;
+            signalDoubleTapChange();
+        }
     } else if (strncmp(command, "theme", 5) == 0) {
         int theme_style_index;
         char hex_color[7];
@@ -344,6 +616,23 @@ _Noreturn void setupServer() {
 
 int main(void) {
     signal(SIGHUP, SIG_IGN);
+    /* SIGPIPE would otherwise kill the daemon if a client goes away mid-write. */
+    signal(SIGPIPE, SIG_IGN);
+
+    if (pipe(gDoubleTapPipe) != 0) {
+        LOGE("Failed to create double tap pipe: %s", strerror(errno));
+    } else {
+        /* Non-blocking read end, so draining it never stalls the watcher. */
+        fcntl(gDoubleTapPipe[0], F_SETFL, fcntl(gDoubleTapPipe[0], F_GETFL, 0) | O_NONBLOCK);
+
+        pthread_t doubleTapTid;
+        if (pthread_create(&doubleTapTid, NULL, doubleTapThread, NULL) != 0) {
+            LOGE("Failed to start double tap thread: %s", strerror(errno));
+        } else {
+            pthread_detach(doubleTapTid);
+        }
+    }
+
     setupServer();
     return 0;
 }
