@@ -1616,6 +1616,25 @@ def update_build_prop():
             if key not in set([line.split("=")[0] for line in lines]):
                 file.write(f"{key}={value}\n")
 
+def install_apktool_framework():
+    """Register the image's own framework-res.apk as apktool framework 1.
+
+    Without this apktool falls back to the AOSP framework bundled in its jar, which maps the
+    framework resource IDs used by system apps to the names of a different platform version.
+    Resources that are private on the real platform then get written out as plain "@android:"
+    references instead of "@*android:", and aapt2 refuses to link them when rebuilding, e.g.
+    "resource android:color/accessibility_feature_background is private".
+    """
+    framework_res = "d/system/framework/framework-res.apk"
+    if not os.path.isfile(framework_res):
+        logging.warning(
+            f"{framework_res} not found. apktool will fall back to its bundled framework, "
+            "which usually breaks rebuilding system apps."
+        )
+        return
+    logging.info("Installing framework-res.apk as the apktool framework...")
+    run_command(f"apktool --frame-path ~/.local/share/apktool if {framework_res}")
+
 def update_vndk_rc():
     logging.info("Updating vndk init script...")
     vndk_rc_path = "d/system/etc/init/vndk.rc"
@@ -1693,6 +1712,7 @@ def main():
     run_command('e2fsck -E unshare_blocks -y -f s-ab-raw.img')
 
     with MountImage('s-ab-raw.img', 'd'):
+        install_apktool_framework()
         # patch_framework_jar()
         replace_file("d/system/priv-app/TrebleApp/TrebleApp.apk")
         replace_file("d/system/product/overlay/treble-overlay-Hisense-HLTE556N.apk")
