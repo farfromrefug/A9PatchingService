@@ -1,0 +1,4 @@
+# The Dockerfile only installs packages, so keep the jars, apks and images out of the build
+# context. Everything the patcher needs is bind-mounted at run time instead.
+*
+!Dockerfile
