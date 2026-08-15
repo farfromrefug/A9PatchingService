@@ -86,7 +86,7 @@ jobs:
           "$build_tools/apksigner" verify --print-certs \
             app/external_scripts/system_img_patcher/a9service.apk
 
-      - run:  echo "LOS_BUILD=lineage-21.0-20250222-UNOFFICIAL-arm64_bvN.img" >> $GITHUB_ENV
+      - run:  echo "LOS_BUILD=lineage-21.0-20250621-UNOFFICIAL-arm64_bvN.img" >> $GITHUB_ENV
       - run:  echo "APK_TOOL_VERSION=apktool_2.11.0" >> $GITHUB_ENV
       
       - run: |
